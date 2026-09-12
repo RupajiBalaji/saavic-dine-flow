@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789199637430,
+      "tag": "0000_saavic_core_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789199679255,
+      "tag": "0001_saavic_seed_menu_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789199767383,
+      "tag": "0002_order_number_fn",
+      "breakpoints": true
+    }
+  ]
+}
