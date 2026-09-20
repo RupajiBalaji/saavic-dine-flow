@@ -504,26 +504,26 @@ function TableMenuFlow({
   const isPaid = state?.session?.payment_state === "PAID" || state?.session?.payment_state === "CASH_PAID";
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] pb-28">
+    <div className="min-h-screen bg-[#FAF8F5] pb-36 sm:pb-32">
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-[#EAE6DE]">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/home"
               className="inline-flex items-center gap-1 text-xs font-semibold text-[#4A6046] hover:text-[#163E24] px-2 py-1 rounded-full hover:bg-[#EDE9E1] transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span className="hidden xs:inline">About Café</span>
+              <span className="hidden sm:inline">About</span>
             </Link>
             <div className="h-4 w-px bg-[#D9D3C7]" />
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex items-center gap-1.5 sm:gap-2">
               <img
                 src="/images/logo-monogram-green.png"
                 alt="Saavic"
-                className="w-6 h-6 object-contain"
+                className="w-5 sm:w-6 h-5 sm:h-6 object-contain shrink-0"
               />
-              <span className="font-serif text-sm font-bold tracking-wider text-[#163E24]">
+              <span className="font-serif text-xs sm:text-sm font-bold tracking-wider text-[#163E24]">
                 SAAVIC
               </span>
             </Link>
@@ -533,18 +533,18 @@ function TableMenuFlow({
           <div className="flex items-center gap-2">
             <button
               onClick={onChangeTable}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2EC] border border-[#CDE1D2] text-[#163E24] text-xs font-bold hover:bg-[#d8ebd9] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#EAF2EC] border border-[#CDE1D2] text-[#163E24] text-xs font-bold hover:bg-[#d8ebd9] active:scale-95 transition-all cursor-pointer"
               title="Click to switch table"
             >
               <span className="w-2 h-2 rounded-full bg-[#1B4D2E] animate-pulse" />
               <span>{table ? table.name : slug.replace("-", " ").toUpperCase()}</span>
-              <span className="text-[10px] text-[#4A6046] font-normal underline ml-1">Change</span>
+              <span className="text-[10px] text-[#4A6046] font-normal underline ml-0.5 sm:ml-1">Change</span>
             </button>
 
             {cart.items.length > 0 && tab !== "cart" && (
               <button
                 onClick={() => setTab("cart")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1B4D2E] text-white text-xs font-bold shadow-xs hover:bg-[#143B23] transition-colors cursor-pointer"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1B4D2E] text-white text-xs font-bold shadow-xs hover:bg-[#143B23] transition-colors cursor-pointer"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
                 <span>Cart ({cart.count})</span>
@@ -715,7 +715,7 @@ function TableMenuFlow({
                               size="sm"
                               variant="outline"
                               onClick={() => setSelected(product)}
-                              className="w-full rounded-full border-[#1B4D2E] text-[#1B4D2E] hover:bg-[#EAF2EC] text-xs font-bold"
+                              className="w-full rounded-full border-[#1B4D2E] text-[#1B4D2E] hover:bg-[#EAF2EC] text-xs font-bold h-9 active:scale-98 transition-transform cursor-pointer"
                             >
                               {inCartQty > 0 ? `Customise (${inCartQty})` : "Customise & Add +"}
                             </Button>
@@ -724,30 +724,30 @@ function TableMenuFlow({
                               <span className="text-xs font-bold text-[#1B4D2E]">
                                 In cart: {inCartQty}
                               </span>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-7 w-7 rounded-full cursor-pointer"
+                              <div className="flex items-center gap-1 bg-[#FAF8F5] border border-[#D9D3C7] rounded-full p-0.5">
+                                <button
+                                  type="button"
+                                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs text-[#163E24] hover:bg-[#EDE9E1] active:bg-[#D9D3C7] cursor-pointer transition-colors"
                                   onClick={() => {
                                     const item = cart.items.find((i) => i.productId === product.id);
                                     if (item) cart.setQty(item.key, item.quantity - 1);
                                   }}
+                                  aria-label="Decrease quantity"
                                 >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="text-xs font-bold px-2">{inCartQty}</span>
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-7 w-7 rounded-full cursor-pointer"
+                                  <Minus className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="text-xs font-bold min-w-5 text-center px-1">{inCartQty}</span>
+                                <button
+                                  type="button"
+                                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs text-[#163E24] hover:bg-[#EDE9E1] active:bg-[#D9D3C7] cursor-pointer transition-colors"
                                   onClick={() => {
                                     const item = cart.items.find((i) => i.productId === product.id);
                                     if (item) cart.setQty(item.key, item.quantity + 1);
                                   }}
+                                  aria-label="Increase quantity"
                                 >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             </div>
                           ) : (
@@ -763,7 +763,7 @@ function TableMenuFlow({
                                 });
                                 toast.success(`Added ${product.name} to cart.`);
                               }}
-                              className="w-full rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold shadow-2xs cursor-pointer"
+                              className="w-full rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold h-9 shadow-2xs cursor-pointer active:scale-98 transition-transform"
                             >
                               Add to Cart +
                             </Button>
@@ -991,23 +991,30 @@ function TableMenuFlow({
                     </div>
 
                     {/* Progress Step Indicator */}
-                    <div className="grid grid-cols-6 gap-1 pt-1 pb-2">
-                      {ORDER_FLOW.map((step, idx) => {
-                        const currentIdx = ORDER_FLOW.indexOf(order.status as any);
-                        const isDone = currentIdx >= 0 && idx <= currentIdx;
-                        return (
-                          <div key={step} className="text-center">
-                            <div
-                              className={`h-1.5 rounded-full mb-1 ${
-                                isDone ? "bg-[#1B4D2E]" : "bg-[#EDE9E1]"
-                              }`}
-                            />
-                            <span className="text-[9px] text-[#7A8578] uppercase font-semibold block truncate">
-                              {step}
-                            </span>
-                          </div>
-                        );
-                      })}
+                    <div className="pt-1.5 pb-2">
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        {ORDER_FLOW.map((step, idx) => {
+                          const currentIdx = ORDER_FLOW.indexOf(order.status as any);
+                          const isDone = currentIdx >= 0 && idx <= currentIdx;
+                          const isCurrent = currentIdx === idx;
+                          return (
+                            <div key={step} className="flex-1 flex flex-col items-center">
+                              <div
+                                className={`h-1.5 w-full rounded-full transition-all ${
+                                  isDone ? "bg-[#1B4D2E]" : "bg-[#EDE9E1]"
+                                } ${isCurrent ? "ring-2 ring-[#88B04B]/60" : ""}`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-[#7A8578] font-semibold uppercase px-0.5">
+                        <span className="text-[#1B4D2E]">Placed</span>
+                        <span className="text-[#163E24] font-bold bg-[#EAF2EC] px-2 py-0.5 rounded-md text-[9px] tracking-wide">
+                          {statusLabel[order.status] || order.status}
+                        </span>
+                        <span className={order.status === "COMPLETED" ? "text-[#1B4D2E]" : "text-[#A1A89F]"}>Served</span>
+                      </div>
                     </div>
 
                     {/* Item list */}
@@ -1075,23 +1082,23 @@ function TableMenuFlow({
 
       {/* Floating Bottom Cart Bar (if in Menu tab and cart has items) */}
       {tab === "menu" && cart.items.length > 0 && (
-        <div className="fixed bottom-18 left-0 right-0 z-30 px-4 pointer-events-none">
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] sm:bottom-18 left-0 right-0 z-30 px-3 sm:px-4 pointer-events-none">
           <div className="max-w-md mx-auto pointer-events-auto">
             <button
               onClick={() => setTab("cart")}
-              className="w-full bg-[#1B4D2E] hover:bg-[#143B23] text-white rounded-2xl p-4 shadow-xl flex items-center justify-between transition-all group cursor-pointer"
+              className="w-full bg-[#1B4D2E] active:bg-[#143B23] text-white rounded-2xl p-3 sm:p-4 shadow-xl flex items-center justify-between transition-all group cursor-pointer active:scale-98"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-bold text-xs">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-7 sm:w-8 h-7 sm:h-8 rounded-xl bg-white/20 flex items-center justify-center font-bold text-xs">
                   {cart.count}
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold leading-tight">View Cart</p>
-                  <p className="text-[10px] text-white/80">Table: {table?.name ?? slug}</p>
+                  <p className="text-xs sm:text-sm font-bold leading-tight">View Cart</p>
+                  <p className="text-[10px] text-white/80">Table: {table ? table.name : slug.replace("-", " ").toUpperCase()}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-bold">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold">
                 <span>{inr(cartTotal)}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
@@ -1101,21 +1108,21 @@ function TableMenuFlow({
       )}
 
       {/* Sticky Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E8E2D5] py-2">
-        <div className="max-w-md mx-auto px-6 flex items-center justify-around">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E8E2D5] pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]">
+        <div className="max-w-md mx-auto px-4 sm:px-6 flex items-center justify-around">
           <button
             onClick={() => setTab("menu")}
-            className={`flex flex-col items-center gap-1 py-1 text-xs cursor-pointer ${
+            className={`flex flex-col items-center gap-0.5 py-1 text-xs cursor-pointer active:scale-95 transition-transform ${
               tab === "menu" ? "text-[#1B4D2E] font-bold" : "text-[#7A8578] font-medium"
             }`}
           >
             <UtensilsCrossed className="w-5 h-5" />
-            <span>Menu</span>
+            <span className="text-[11px]">Menu</span>
           </button>
 
           <button
             onClick={() => setTab("cart")}
-            className={`relative flex flex-col items-center gap-1 py-1 text-xs cursor-pointer ${
+            className={`relative flex flex-col items-center gap-0.5 py-1 text-xs cursor-pointer active:scale-95 transition-transform ${
               tab === "cart" ? "text-[#1B4D2E] font-bold" : "text-[#7A8578] font-medium"
             }`}
           >
@@ -1125,12 +1132,12 @@ function TableMenuFlow({
                 {cart.count}
               </span>
             )}
-            <span>Cart</span>
+            <span className="text-[11px]">Cart</span>
           </button>
 
           <button
             onClick={() => setTab("orders")}
-            className={`relative flex flex-col items-center gap-1 py-1 text-xs cursor-pointer ${
+            className={`relative flex flex-col items-center gap-0.5 py-1 text-xs cursor-pointer active:scale-95 transition-transform ${
               tab === "orders" ? "text-[#1B4D2E] font-bold" : "text-[#7A8578] font-medium"
             }`}
           >
@@ -1138,15 +1145,15 @@ function TableMenuFlow({
             {hasActiveOrders && (
               <span className="absolute top-0.5 right-2 w-2 h-2 rounded-full bg-orange-500 animate-ping" />
             )}
-            <span>Orders</span>
+            <span className="text-[11px]">Orders</span>
           </button>
 
           <Link
             to="/home"
-            className="flex flex-col items-center gap-1 py-1 text-xs text-[#7A8578] hover:text-[#163E24] font-medium"
+            className="flex flex-col items-center gap-0.5 py-1 text-xs text-[#7A8578] hover:text-[#163E24] font-medium active:scale-95 transition-transform"
           >
             <Info className="w-5 h-5" />
-            <span>About</span>
+            <span className="text-[11px]">About</span>
           </Link>
         </div>
       </nav>

@@ -76,7 +76,7 @@ export function TablePickerModal({
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-2.5">
               {tables.map((t) => {
                 const isCurrent = t.slug === currentSlug;
                 const isOccupied = t.isOccupied;
@@ -86,7 +86,7 @@ export function TablePickerModal({
                     key={t.slug}
                     type="button"
                     onClick={() => handleTableClick(t)}
-                    className={`relative p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                    className={`relative p-3 sm:p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between active:scale-95 ${
                       isOccupied
                         ? "bg-stone-100/90 border-stone-200 opacity-70 cursor-not-allowed hover:border-rose-300"
                         : isCurrent

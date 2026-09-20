@@ -83,18 +83,18 @@ function LandingPage() {
           </Link>
 
           {/* Right Header Navigation & Actions */}
-          <div className="flex items-center gap-2.5 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/home"
-              className="text-xs font-semibold text-[#4A6046] hover:text-[#163E24] px-3 py-1.5 rounded-full hover:bg-[#EDE9E1] transition-colors flex items-center gap-1"
+              className="text-xs font-semibold text-[#4A6046] hover:text-[#163E24] px-2.5 sm:px-3 py-1.5 rounded-full hover:bg-[#EDE9E1] transition-colors flex items-center gap-1"
             >
-              <Info className="w-3.5 h-3.5" />
-              <span>About Café</span>
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xs:inline">About</span>
             </Link>
 
             <button
               onClick={() => setShowTableModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EDE9E1] hover:bg-[#E3DED4] text-[#3D473B] text-xs font-medium transition-colors cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EDE9E1] hover:bg-[#E3DED4] text-[#3D473B] text-xs font-medium transition-colors cursor-pointer"
             >
               <QrCode className="w-3.5 h-3.5 text-[#1B4D2E]" />
               <span>Select Table</span>
@@ -104,14 +104,14 @@ function LandingPage() {
             <Button
               size="sm"
               onClick={() => setShowTableModal(true)}
-              className="rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold px-4 py-1.5 shadow-xs cursor-pointer"
+              className="rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold px-3.5 sm:px-4 py-1.5 shadow-xs cursor-pointer active:scale-95 transition-transform"
             >
               <span>Order Now</span>
             </Button>
 
             <Link
               to="/auth"
-              className="text-[11px] font-semibold text-[#667262] hover:text-[#163E24] px-1.5 py-1 transition-colors"
+              className="hidden sm:inline-block text-[11px] font-semibold text-[#667262] hover:text-[#163E24] px-1.5 py-1 transition-colors"
               title="Staff Access"
             >
               Staff

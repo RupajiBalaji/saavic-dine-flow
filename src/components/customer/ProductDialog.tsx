@@ -115,7 +115,7 @@ export function ProductDialog({
 
           {groups.map((group) => (
             <fieldset key={group.id} className="space-y-2">
-              <legend className="text-sm font-medium">{group.name}</legend>
+              <legend className="text-xs font-bold uppercase tracking-wider text-[#1B4D2E]">{group.name}</legend>
               <div className="flex flex-wrap gap-2">
                 {group.options.map((opt) => {
                   const active = (selected[group.id] ?? []).includes(opt.id);
@@ -125,10 +125,10 @@ export function ProductDialog({
                       type="button"
                       aria-pressed={active}
                       onClick={() => toggle(group, opt.id)}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      className={`rounded-full border px-3.5 py-2 text-xs font-medium transition-all cursor-pointer ${
                         active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-card text-foreground hover:bg-accent"
+                          ? "border-[#1B4D2E] bg-[#1B4D2E] text-white shadow-2xs"
+                          : "border-[#E8E2D5] bg-white text-[#3D473C] hover:bg-[#EDE9E1]"
                       }`}
                     >
                       {opt.name}
@@ -141,38 +141,41 @@ export function ProductDialog({
           ))}
 
           <div className="space-y-1.5">
-            <Label htmlFor="item-notes">Any special request?</Label>
+            <Label htmlFor="item-notes" className="text-xs font-medium text-[#4F584C]">Any special cooking request?</Label>
             <Input
               id="item-notes"
               maxLength={200}
-              placeholder="e.g. Don't add onion"
+              placeholder="e.g. Less spicy, dressing on side..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              className="rounded-xl border-[#E8E2D5] text-xs"
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 rounded-full border border-border px-2 py-1">
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-md pt-3 pb-3 border-t border-[#E8E2D5] flex items-center justify-between gap-3 -mx-5 px-5 mt-4">
+            <div className="flex items-center gap-2 rounded-full border border-[#D9D3C7] bg-[#FAF8F5] px-2 py-1">
               <Button
                 size="icon"
                 variant="ghost"
                 aria-label="Decrease quantity"
+                className="h-8 w-8 rounded-full cursor-pointer hover:bg-[#EDE9E1]"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
               >
                 <Minus className="h-4 w-4" />
               </Button>
-              <span className="w-6 text-center font-medium">{quantity}</span>
+              <span className="w-6 text-center font-bold text-xs">{quantity}</span>
               <Button
                 size="icon"
                 variant="ghost"
                 aria-label="Increase quantity"
+                className="h-8 w-8 rounded-full cursor-pointer hover:bg-[#EDE9E1]"
                 onClick={() => setQuantity((q) => Math.min(20, q + 1))}
               >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
             <Button
-              className="flex-1"
+              className="flex-1 rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold py-3 shadow-md active:scale-98 transition-transform cursor-pointer"
               disabled={unavailable}
               onClick={() => onAdd({ quantity, notes: notes.trim(), modifiers: chosen })}
             >

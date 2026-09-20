@@ -47,37 +47,38 @@ function CafeHomePage() {
       {/* Top Navigation */}
       <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-[#EAE6DE] transition-colors">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#4A6046] hover:text-[#163E24] px-2.5 py-1.5 rounded-full hover:bg-[#EDE9E1] transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#4A6046] hover:text-[#163E24] px-2 py-1.5 rounded-full hover:bg-[#EDE9E1] transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Landing</span>
+              <span className="hidden xs:inline">Landing</span>
             </Link>
             <div className="h-4 w-px bg-[#D9D3C7]" />
             <Link to="/" className="flex items-center gap-2">
               <img
                 src="/images/logo-monogram-green.png"
                 alt="Saavic Logo"
-                className="w-7 h-7 object-contain"
+                className="w-6 sm:w-7 h-6 sm:h-7 object-contain shrink-0"
               />
               <div className="leading-tight">
-                <span className="font-serif text-sm sm:text-base font-bold tracking-[2px] uppercase text-[#163E24] block">
+                <span className="font-serif text-xs sm:text-base font-bold tracking-[1.5px] sm:tracking-[2px] uppercase text-[#163E24] block">
                   SAAVIC
                 </span>
-                <span className="text-[9px] uppercase tracking-[1.5px] text-[#4A6046] font-semibold block">
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-[1px] sm:tracking-[1.5px] text-[#4A6046] font-semibold block">
                   HEALTHY CAFÉ
                 </span>
               </div>
             </Link>
           </div>
 
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <Button asChild size="sm" className="rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold px-4 py-2 shadow-xs">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button asChild size="sm" className="rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold px-3 sm:px-4 py-1.5 sm:py-2 shadow-xs active:scale-95 transition-transform">
               <Link to="/menu">
-                <UtensilsCrossed className="w-3.5 h-3.5 mr-1.5" />
-                <span>View Menu & Order</span>
+                <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />
+                <span className="hidden xs:inline">View </span>
+                <span>Menu & Order</span>
               </Link>
             </Button>
           </div>
