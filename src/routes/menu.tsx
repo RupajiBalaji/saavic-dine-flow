@@ -740,11 +740,11 @@ function TableMenuFlow({
         {/* TAB 1: MENU CATALOG */}
         {tab === "menu" && (
           <div>
-            {/* Products Grid */}
+            {/* Products List */}
             {menuQuery.isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-64 rounded-2xl bg-[#EDE9E1]" />
+                  <Skeleton key={i} className="h-24 rounded-2xl bg-[#EDE9E1]" />
                 ))}
               </div>
             ) : products.length === 0 ? (
@@ -761,166 +761,149 @@ function TableMenuFlow({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {products.map((product) => {
                   const isOutOfStock = product.status !== "AVAILABLE";
                   const hasMods = (modifierGroups[product.id] ?? []).length > 0;
                   const inCartQty = cart.items
                     .filter((i) => i.productId === product.id)
                     .reduce((sum, i) => sum + i.quantity, 0);
+                  const catSlug = menu?.categories.find((c) => c.id === product.category_id)?.slug;
 
                   return (
                     <article
                       key={product.id}
-                      className={`bg-white rounded-2xl border border-[#E8E2D5] overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between ${
+                      className={`bg-white rounded-2xl border border-[#E8E2D5] p-3 sm:p-3.5 shadow-2xs hover:shadow-xs transition-all flex items-center gap-3 sm:gap-3.5 ${
                         isOutOfStock ? "opacity-75" : ""
                       }`}
                     >
                       <div
-                        className="relative h-44 w-full cursor-pointer overflow-hidden"
+                        className="relative h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-2xl bg-stone-100"
                         onClick={() => !isOutOfStock && setSelected(product)}
                       >
                         <img
-                          src={
-                            product.image_url ||
-                            categoryImage(menu?.categories.find((c) => c.id === product.category_id)?.slug)
-                          }
+                          src={product.image_url || categoryImage(catSlug)}
                           alt={product.name}
-                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                          className="h-full w-full object-cover hover:scale-105 transition-transform duration-300"
                         />
                         {isOutOfStock && (
                           <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center z-10">
-                            <span className="px-3 py-1 rounded-full bg-rose-600 text-white text-[11px] font-bold uppercase tracking-wider shadow">
-                              Out of Stock
+                            <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-bold uppercase tracking-wider">
+                              Sold Out
                             </span>
                           </div>
                         )}
                         {product.is_meal_plan && (
-                          <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-[#163E24] text-white text-[10px] font-bold tracking-wider uppercase">
-                            26-Day Plan
-                          </span>
-                        )}
-                        {product.is_veg != null && (
-                          <span
-                            className={`absolute top-2.5 right-2.5 w-4 h-4 rounded-xs border flex items-center justify-center bg-white ${
-                              product.is_veg ? "border-green-600" : "border-red-600"
-                            }`}
-                          >
-                            <span
-                              className={`w-2 h-2 rounded-full ${
-                                product.is_veg ? "bg-green-600" : "bg-red-600"
-                              }`}
-                            />
+                          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-full bg-[#163E24] text-white text-[8px] font-bold uppercase">
+                            Plan
                           </span>
                         )}
                       </div>
 
-                      <div className="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <h3
-                              onClick={() => !isOutOfStock && setSelected(product)}
-                              className={`font-serif font-bold text-base ${
-                                isOutOfStock
-                                  ? "text-stone-500 cursor-not-allowed"
-                                  : "text-[#163E24] hover:text-[#1B4D2E] cursor-pointer"
+                      <div className="min-w-0 flex-1 flex flex-col justify-center">
+                        <div className="flex items-start gap-1">
+                          {product.is_veg != null && (
+                            <span
+                              className={`inline-flex items-center justify-center shrink-0 w-3.5 h-3.5 rounded-xs border mt-0.5 bg-white ${
+                                product.is_veg ? "border-green-600" : "border-red-600"
                               }`}
                             >
-                              {product.name}
-                            </h3>
-                            <span className="font-bold text-sm text-[#163E24] shrink-0">
-                              {inr(Number(product.price))}
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  product.is_veg ? "bg-green-600" : "bg-red-600"
+                                }`}
+                              />
                             </span>
-                          </div>
-
-                          {product.description && (
-                            <p className="text-xs text-[#5D665A] mt-1 line-clamp-2 leading-relaxed">
-                              {product.description}
-                            </p>
                           )}
-
-                          <div className="flex flex-wrap gap-1.5 mt-2.5">
-                            {product.calories != null && (
-                              <span className="text-[10px] font-medium bg-[#FAF8F5] border border-[#E8E2D5] px-2 py-0.5 rounded-md text-[#5D665A]">
-                                {product.calories} kcal
-                              </span>
-                            )}
-                            {product.protein != null && (
-                              <span className="text-[10px] font-bold bg-[#EAF2EC] text-[#1B4D2E] px-2 py-0.5 rounded-md">
-                                {product.protein}g protein
-                              </span>
-                            )}
-                          </div>
+                          <h3
+                            onClick={() => !isOutOfStock && setSelected(product)}
+                            className={`font-semibold text-sm sm:text-base leading-snug truncate ${
+                              isOutOfStock
+                                ? "text-stone-500 cursor-not-allowed"
+                                : "text-[#163E24] hover:text-[#1B4D2E] cursor-pointer"
+                            }`}
+                          >
+                            {product.name}
+                          </h3>
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-[#F0EBE1] flex items-center justify-between">
-                          {isOutOfStock ? (
-                            <Button
-                              size="sm"
-                              disabled
-                              className="w-full rounded-full bg-stone-100 border border-stone-200 text-stone-400 text-xs font-bold h-9 cursor-not-allowed"
-                            >
-                              Sold Out
-                            </Button>
-                          ) : hasMods ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelected(product)}
-                              className="w-full rounded-full border-[#1B4D2E] text-[#1B4D2E] hover:bg-[#EAF2EC] text-xs font-bold h-9 active:scale-98 transition-transform cursor-pointer"
-                            >
-                              {inCartQty > 0 ? `Customise (${inCartQty})` : "Customise & Add +"}
-                            </Button>
-                          ) : inCartQty > 0 ? (
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-xs font-bold text-[#1B4D2E]">
-                                In cart: {inCartQty}
-                              </span>
-                              <div className="flex items-center gap-1 bg-[#FAF8F5] border border-[#D9D3C7] rounded-full p-0.5">
-                                <button
-                                  type="button"
-                                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs text-[#163E24] hover:bg-[#EDE9E1] active:bg-[#D9D3C7] cursor-pointer transition-colors"
-                                  onClick={() => {
-                                    const item = cart.items.find((i) => i.productId === product.id);
-                                    if (item) cart.setQty(item.key, item.quantity - 1);
-                                  }}
-                                  aria-label="Decrease quantity"
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </button>
-                                <span className="text-xs font-bold min-w-5 text-center px-1">{inCartQty}</span>
-                                <button
-                                  type="button"
-                                  className="h-8 w-8 rounded-full flex items-center justify-center text-xs text-[#163E24] hover:bg-[#EDE9E1] active:bg-[#D9D3C7] cursor-pointer transition-colors"
-                                  onClick={() => {
-                                    const item = cart.items.find((i) => i.productId === product.id);
-                                    if (item) cart.setQty(item.key, item.quantity + 1);
-                                  }}
-                                  aria-label="Increase quantity"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
+                        {product.description && (
+                          <p className="text-xs text-[#5D665A] line-clamp-1 sm:line-clamp-2 mt-0.5 leading-relaxed">
+                            {product.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="font-bold text-sm sm:text-base text-[#1B4D2E]">
+                            {inr(Number(product.price))}
+                          </span>
+                          {product.calories != null && (
+                            <span className="text-[10px] text-stone-400 font-medium">
+                              · {product.calories} kcal
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center justify-end">
+                        {isOutOfStock ? (
+                          <span className="rounded-full bg-stone-100 border border-stone-200 text-stone-400 text-xs font-semibold px-3 py-1.5">
+                            Sold Out
+                          </span>
+                        ) : hasMods ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelected(product)}
+                            className="rounded-full border-[#1B4D2E] text-[#1B4D2E] hover:bg-[#EAF2EC] text-xs font-bold px-3.5 py-1.5 h-8 shrink-0 active:scale-95 transition-transform"
+                          >
+                            {inCartQty > 0 ? `Customise (${inCartQty})` : "+ ADD"}
+                          </Button>
+                        ) : inCartQty > 0 ? (
+                          <div className="flex items-center gap-1 bg-[#FAF8F5] border border-[#D9D3C7] rounded-full p-0.5">
+                            <button
+                              type="button"
+                              className="h-7 w-7 rounded-full flex items-center justify-center text-xs text-[#163E24] hover:bg-[#EDE9E1] active:bg-[#D9D3C7] transition-colors cursor-pointer"
                               onClick={() => {
-                                cart.add({
-                                  productId: product.id,
-                                  name: product.name,
-                                  unitPrice: Number(product.price),
-                                  quantity: 1,
-                                  modifiers: [],
-                                });
-                                toast.success(`Added ${product.name} to cart.`);
+                                const item = cart.items.find((i) => i.productId === product.id);
+                                if (item) cart.setQty(item.key, item.quantity - 1);
                               }}
-                              className="w-full rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs font-bold h-9 shadow-2xs cursor-pointer active:scale-98 transition-transform"
+                              aria-label="Decrease quantity"
                             >
-                              Add to Cart +
-                            </Button>
-                          )}
-                        </div>
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <span className="text-xs font-bold min-w-5 text-center px-1">{inCartQty}</span>
+                            <button
+                              type="button"
+                              className="h-7 w-7 rounded-full flex items-center justify-center text-xs text-[#163E24] hover:bg-[#EDE9E1] active:bg-[#D9D3C7] transition-colors cursor-pointer"
+                              onClick={() => {
+                                const item = cart.items.find((i) => i.productId === product.id);
+                                if (item) cart.setQty(item.key, item.quantity + 1);
+                              }}
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              cart.add({
+                                productId: product.id,
+                                name: product.name,
+                                unitPrice: Number(product.price),
+                                quantity: 1,
+                                modifiers: [],
+                              });
+                              toast.success(`Added ${product.name} to cart.`);
+                            }}
+                            className="rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white text-xs sm:text-sm font-bold px-3.5 py-1.5 shrink-0 shadow-2xs active:scale-95 transition-transform flex items-center justify-center cursor-pointer"
+                          >
+                            + ADD
+                          </button>
+                        )}
                       </div>
                     </article>
                   );

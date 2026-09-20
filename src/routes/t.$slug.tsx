@@ -519,17 +519,17 @@ function CustomerPortal() {
                         loading="lazy"
                         width={816}
                         height={816}
-                        className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                        className="h-20 w-20 shrink-0 rounded-2xl object-cover"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{p.name}</p>
+                        <p className="truncate font-semibold text-stone-900 dark:text-foreground">{p.name}</p>
                         {p.description && (
-                          <p className="line-clamp-2 text-sm text-muted-foreground">{p.description}</p>
+                          <p className="line-clamp-2 text-xs text-muted-foreground mt-0.5">{p.description}</p>
                         )}
-                        <p className="mt-1 font-semibold text-primary">{inr(p.price)}</p>
+                        <p className="mt-1 font-bold text-primary">{inr(p.price)}</p>
                       </div>
                       <span
-                        className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                        className={`rounded-full px-3.5 py-1.5 text-xs sm:text-sm font-bold shrink-0 shadow-2xs ${
                           out ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
                         }`}
                       >
