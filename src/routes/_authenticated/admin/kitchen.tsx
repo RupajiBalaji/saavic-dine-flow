@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -13,11 +13,14 @@ import {
   Sparkles,
   RefreshCw,
   XCircle,
+  UtensilsCrossed,
+  Search,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { getKitchenOrders, updateOrderStatus } from "@/lib/admin.functions";
+import { getKitchenOrders, updateOrderStatus, getLists, setProductStatus } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,14 +59,32 @@ function KitchenDisplayPage() {
   const [filter, setFilter] = useState<string>("ALL");
   const [cancelModalOrder, setCancelModalOrder] = useState<KitchenOrder | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
+  const [dishSearch, setDishSearch] = useState("");
+  const [dishCat, setDishCat] = useState("ALL");
+  const [now, setNow] = useState(Date.now());
+
+  // 1-second heartbeat timer for 8-min countdown and live auto-advancement
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const kitchenFn = useServerFn(getKitchenOrders);
   const updateStatusFn = useServerFn(updateOrderStatus);
+  const listsFn = useServerFn(getLists);
+  const setProductStatusFn = useServerFn(setProductStatus);
 
   const kitchenQuery = useQuery({
     queryKey: ["kitchen-orders"],
     queryFn: () => kitchenFn(),
-    refetchInterval: 8000,
+    refetchInterval: 5000,
+  });
+
+  const listsQuery = useQuery({
+    queryKey: ["admin-lists"],
+    queryFn: () => listsFn(),
+    enabled: isAvailabilityOpen,
   });
 
   // Realtime subscription on orders
@@ -98,12 +119,50 @@ function KitchenDisplayPage() {
     },
   });
 
+  const productStatusMutation = useMutation({
+    mutationFn: async (vars: { id: string; status: "AVAILABLE" | "OUT_OF_STOCK" | "HIDDEN" }) => {
+      return await setProductStatusFn({ data: vars });
+    },
+    onSuccess: (_, vars) => {
+      toast.success(
+        vars.status === "OUT_OF_STOCK"
+          ? "Dish marked Out of Stock"
+          : vars.status === "AVAILABLE"
+          ? "Dish marked Available"
+          : "Dish status updated",
+      );
+      queryClient.invalidateQueries({ queryKey: ["admin-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["menu"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to update dish status"),
+  });
+
   const rawOrders = (kitchenQuery.data ?? []) as unknown as KitchenOrder[];
+
+  // Auto-progression client-side trigger (5s -> ACCEPTED, 210s -> PREPARING)
+  useEffect(() => {
+    if (!rawOrders || rawOrders.length === 0 || updateMutation.isPending) return;
+    const current = Date.now();
+    for (const o of rawOrders) {
+      const elapsed = current - new Date(o.created_at).getTime();
+      if (o.status === "PLACED" && elapsed >= 5000) {
+        updateMutation.mutate({ orderId: o.id, status: "ACCEPTED" });
+        break;
+      }
+      if (o.status === "ACCEPTED" && elapsed >= 210000) {
+        updateMutation.mutate({ orderId: o.id, status: "PREPARING" });
+        break;
+      }
+    }
+  }, [now, rawOrders, updateMutation.isPending]);
 
   const orders = rawOrders.filter((o) => {
     if (filter === "ALL") return true;
     return o.status === filter;
   });
+
+  const allProducts = listsQuery.data?.products ?? [];
+  const outOfStockCount = allProducts.filter((p: any) => p.status === "OUT_OF_STOCK").length;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -141,7 +200,22 @@ function KitchenDisplayPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAvailabilityOpen(true)}
+            className="border-emerald-600/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 font-semibold"
+          >
+            <UtensilsCrossed className="mr-1.5 h-4 w-4 text-emerald-600" />
+            Dish Availability
+            {outOfStockCount > 0 && (
+              <Badge variant="destructive" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                {outOfStockCount} Out
+              </Badge>
+            )}
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -231,6 +305,15 @@ function KitchenDisplayPage() {
             const isPrep = order.status === "PREPARING";
             const isReady = order.status === "READY";
 
+            const elapsedSecs = Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 1000));
+            const remainingSecs = 480 - elapsedSecs; // 8 minutes countdown
+            const isOverdue = remainingSecs < 0;
+            const displayMins = Math.floor(Math.abs(remainingSecs) / 60);
+            const displaySecs = Math.abs(remainingSecs) % 60;
+            const timeBadgeText = isOverdue
+              ? `+${displayMins}m ${displaySecs}s overdue`
+              : `${displayMins}m ${String(displaySecs).padStart(2, "0")}s left`;
+
             return (
               <Card
                 key={order.id}
@@ -269,11 +352,19 @@ function KitchenDisplayPage() {
                     </div>
 
                     <div className="text-right">
-                      <div className="flex items-center justify-end gap-1 text-xs font-semibold text-muted-foreground">
+                      <div
+                        className={`inline-flex items-center justify-end gap-1 text-xs font-bold px-2 py-0.5 rounded-md ${
+                          isOverdue
+                            ? "bg-rose-500/15 text-rose-700 dark:text-rose-400 animate-pulse"
+                            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                        }`}
+                      >
                         <Clock className="h-3.5 w-3.5" />
-                        <span>{getElapsedTime(order.created_at)}</span>
+                        <span>{timeBadgeText}</span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground">{istTime(order.created_at)}</span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                        Placed {getElapsedTime(order.created_at)} ({istTime(order.created_at)})
+                      </span>
                     </div>
                   </CardHeader>
 
@@ -314,31 +405,41 @@ function KitchenDisplayPage() {
                   </CardContent>
                 </div>
 
-                {/* Card Action Buttons */}
+                {/* Card Action Buttons: ONLY Ready and Served needed */}
                 <div className="p-4 pt-0 border-t border-border/40 mt-2 bg-muted/20">
-                  <div className="flex gap-2 pt-3">
+                  <div className="flex gap-2 pt-3 items-center">
                     {order.status === "PLACED" && (
-                      <Button
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-                        onClick={() =>
-                          updateMutation.mutate({ orderId: order.id, status: "ACCEPTED" })
-                        }
-                        disabled={updateMutation.isPending}
-                      >
-                        Accept Order
-                      </Button>
+                      <div className="flex-1 flex items-center justify-between gap-2">
+                        <span className="text-xs text-amber-700 dark:text-amber-300 font-medium flex items-center gap-1.5 animate-pulse">
+                          <Clock className="h-3.5 w-3.5 animate-spin text-amber-600" />
+                          Auto-accepting (5s)...
+                        </span>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shrink-0"
+                          onClick={() => updateMutation.mutate({ orderId: order.id, status: "READY" })}
+                          disabled={updateMutation.isPending}
+                        >
+                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Mark as Ready
+                        </Button>
+                      </div>
                     )}
 
                     {order.status === "ACCEPTED" && (
-                      <Button
-                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold"
-                        onClick={() =>
-                          updateMutation.mutate({ orderId: order.id, status: "PREPARING" })
-                        }
-                        disabled={updateMutation.isPending}
-                      >
-                        <Play className="mr-1.5 h-4 w-4" /> Start Preparing
-                      </Button>
+                      <div className="flex-1 flex items-center justify-between gap-2">
+                        <span className="text-xs text-blue-700 dark:text-blue-300 font-medium flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+                          Auto-prep in ~3m...
+                        </span>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shrink-0"
+                          onClick={() => updateMutation.mutate({ orderId: order.id, status: "READY" })}
+                          disabled={updateMutation.isPending}
+                        >
+                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Mark as Ready
+                        </Button>
+                      </div>
                     )}
 
                     {order.status === "PREPARING" && (
@@ -368,7 +469,7 @@ function KitchenDisplayPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="text-muted-foreground hover:text-destructive hover:border-destructive"
+                      className="text-muted-foreground hover:text-destructive hover:border-destructive shrink-0"
                       onClick={() => setCancelModalOrder(order)}
                       disabled={updateMutation.isPending}
                       title="Cancel Order"
@@ -421,6 +522,122 @@ function KitchenDisplayPage() {
                 Confirm Cancel
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dish Availability (86 / Out of Stock) Dialog */}
+      <Dialog open={isAvailabilityOpen} onOpenChange={setIsAvailabilityOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-serif">
+              <UtensilsCrossed className="h-5 w-5 text-emerald-600" />
+              Manage Dish Availability (Kitchen & Bar)
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground">
+            Mark items Out of Stock when ingredients run out. Dishes marked Out of Stock will immediately be disabled on all customer menus.
+          </p>
+
+          <div className="flex gap-2 items-center pt-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search dish by name..."
+                value={dishSearch}
+                onChange={(e) => setDishSearch(e.target.value)}
+                className="pl-8 text-xs"
+              />
+            </div>
+
+            <div className="flex gap-1 overflow-x-auto no-scrollbar">
+              <Button
+                size="sm"
+                variant={dishCat === "ALL" ? "default" : "outline"}
+                onClick={() => setDishCat("ALL")}
+                className="text-xs h-9 px-3"
+              >
+                All
+              </Button>
+              {(listsQuery.data?.categories ?? []).map((cat: any) => (
+                <Button
+                  key={cat.id}
+                  size="sm"
+                  variant={dishCat === cat.id ? "default" : "outline"}
+                  onClick={() => setDishCat(cat.id)}
+                  className="text-xs h-9 px-3 shrink-0"
+                >
+                  {cat.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dish list */}
+          <div className="overflow-y-auto flex-1 divide-y divide-border/60 mt-3 pr-1 max-h-96">
+            {listsQuery.isLoading ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">Loading dishes...</div>
+            ) : (
+              (listsQuery.data?.products ?? [])
+                .filter((p: any) => {
+                  if (p.status === "HIDDEN") return false;
+                  if (dishCat !== "ALL" && p.category_id !== dishCat) return false;
+                  if (!dishSearch.trim()) return true;
+                  return p.name.toLowerCase().includes(dishSearch.toLowerCase());
+                })
+                .map((prod: any) => {
+                  const isOut = prod.status === "OUT_OF_STOCK";
+                  return (
+                    <div key={prod.id} className="py-3 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-foreground">{prod.name}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{inr(prod.price)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {isOut ? (
+                            <Badge variant="destructive" className="text-[10px] py-0 px-1.5">
+                              Out of Stock (86)
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] py-0 px-1.5">
+                              Available
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant={isOut ? "default" : "outline"}
+                        className={
+                          isOut
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-3"
+                            : "border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 text-xs h-8 px-3"
+                        }
+                        disabled={productStatusMutation.isPending}
+                        onClick={() =>
+                          productStatusMutation.mutate({
+                            id: prod.id,
+                            status: isOut ? "AVAILABLE" : "OUT_OF_STOCK",
+                          })
+                        }
+                      >
+                        {isOut ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 mr-1" /> Mark In Stock
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-3.5 h-3.5 mr-1" /> Mark Out of Stock
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })
+            )}
           </div>
         </DialogContent>
       </Dialog>

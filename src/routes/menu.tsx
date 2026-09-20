@@ -283,6 +283,136 @@ function TableSelectionScreen({ onSelectTable }: { onSelectTable: (slug: string)
 }
 
 
+// Live 8-minute timer and progression card for customer orders
+function CustomerOrderCard({ order }: { order: any }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const elapsedSecs = Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 1000));
+  const totalTargetSecs = 480; // 8 minutes countdown
+  const remainingSecs = Math.max(0, totalTargetSecs - elapsedSecs);
+  const mins = Math.floor(remainingSecs / 60);
+  const secs = remainingSecs % 60;
+  const timerDisplay = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+  // Automatic progression logic:
+  // 0 - 5s: Order Placed (Receiving)
+  // 5s - 210s: Order Accepted (within 5 seconds automatically)
+  // 210s+: Preparing in Kitchen (takes 3-4 mins automatically)
+  // READY: Ready to Serve (kitchen button)
+  // SERVED / COMPLETED: Served to Table (staff button)
+  let currentStepName = "Order Received";
+  let stepIndex = 0;
+
+  if (order.status === "SERVED" || order.status === "COMPLETED") {
+    currentStepName = "Served to Table";
+    stepIndex = 4;
+  } else if (order.status === "READY") {
+    currentStepName = "Food Ready to Serve 🍽️";
+    stepIndex = 3;
+  } else if (order.status === "PREPARING" || elapsedSecs >= 210) {
+    currentStepName = "Preparing in Kitchen 👨‍🍳";
+    stepIndex = 2;
+  } else if (order.status === "ACCEPTED" || elapsedSecs >= 5) {
+    currentStepName = "Order Accepted ✓";
+    stepIndex = 1;
+  } else {
+    currentStepName = "Order Received";
+    stepIndex = 0;
+  }
+
+  const progressPercent = Math.min(100, Math.max(8, Math.round((elapsedSecs / totalTargetSecs) * 100)));
+
+  return (
+    <div className="bg-white rounded-3xl p-5 border border-[#E8E2D5] shadow-2xs space-y-3.5">
+      {/* Top row */}
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-serif font-bold text-base text-[#163E24]">
+            {order.order_number}
+          </span>
+          <span className="text-[11px] text-[#7A8578] block">
+            Placed at {istTime(order.created_at)}
+          </span>
+        </div>
+
+        {/* 8-min Countdown Timer Badge */}
+        {stepIndex < 3 ? (
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF2EC] border border-[#CDE1D2] text-[#1B4D2E]">
+            <Clock className="w-3.5 h-3.5 text-[#1B4D2E] animate-pulse" />
+            <span className="font-mono text-xs font-bold">{timerDisplay}</span>
+            <span className="text-[10px] text-[#4A6046]">left</span>
+          </div>
+        ) : stepIndex === 3 ? (
+          <Badge className="bg-emerald-600 text-white font-bold animate-bounce">
+            Ready to Serve 🍽️
+          </Badge>
+        ) : (
+          <Badge className="bg-[#1B4D2E] text-white font-bold">
+            Served ✓
+          </Badge>
+        )}
+      </div>
+
+      {/* Progress Tracker Bar */}
+      <div className="space-y-1.5 bg-[#FAF8F5] p-3 rounded-2xl border border-[#E8E2D5]/70">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-[#163E24] flex items-center gap-1.5">
+            {stepIndex === 0 && <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />}
+            {stepIndex === 1 && <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />}
+            {stepIndex === 2 && <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-pulse" />}
+            {stepIndex === 3 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+            {stepIndex === 4 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />}
+            {currentStepName}
+          </span>
+          <span className="text-[11px] text-[#7A8578]">
+            {remainingSecs > 0 && stepIndex < 3
+              ? `Est. total: 8 mins`
+              : stepIndex < 3
+              ? `Plating fresh...`
+              : `Completed`}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="w-full bg-[#EDE9E1] h-2 rounded-full overflow-hidden">
+          <div
+            className="bg-gradient-to-r from-[#1B4D2E] to-[#88B04B] h-full transition-all duration-1000 rounded-full"
+            style={{
+              width: stepIndex >= 4 ? "100%" : stepIndex === 3 ? "90%" : `${progressPercent}%`,
+            }}
+          />
+        </div>
+
+        {/* Step checkpoints */}
+        <div className="flex justify-between text-[9px] font-semibold text-[#8E998B] pt-0.5">
+          <span className={stepIndex >= 0 ? "text-[#1B4D2E] font-bold" : ""}>Placed</span>
+          <span className={stepIndex >= 1 ? "text-[#1B4D2E] font-bold" : ""}>Accepted (5s)</span>
+          <span className={stepIndex >= 2 ? "text-[#1B4D2E] font-bold" : ""}>Preparing (3m)</span>
+          <span className={stepIndex >= 3 ? "text-emerald-700 font-bold" : ""}>Ready</span>
+          <span className={stepIndex >= 4 ? "text-[#1B4D2E] font-bold" : ""}>Served</span>
+        </div>
+      </div>
+
+      {/* Item list */}
+      <div className="border-t border-[#F0EBE1] pt-2.5 space-y-1.5">
+        {(order.items ?? []).map((item: any) => (
+          <div key={item.id} className="flex justify-between text-xs text-[#4F584C]">
+            <span>
+              {item.quantity}× {item.name || item.product_name}
+            </span>
+            <span className="font-semibold">{inr(Number(item.line_total))}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Complete Menu, Cart, Order, and Payment flow for a given table slug
 function TableMenuFlow({
   slug,
@@ -384,8 +514,8 @@ function TableMenuFlow({
     (p) => p.name.startsWith("Wellness Shot Add-on"),
   );
 
-  const cartTax = Math.round(((cart.subtotal * taxPercent) / 100) * 100) / 100;
-  const cartTotal = cart.subtotal + cartTax;
+  // Note: Per requirements, do NOT show GST while placing orders; GST is calculated exclusively on final table bill upon payment
+  const cartTotal = cart.subtotal;
 
   // Place Order Mutation
   const placeOrderMutation = useMutation({
@@ -633,6 +763,7 @@ function TableMenuFlow({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((product) => {
+                  const isOutOfStock = product.status !== "AVAILABLE";
                   const hasMods = (modifierGroups[product.id] ?? []).length > 0;
                   const inCartQty = cart.items
                     .filter((i) => i.productId === product.id)
@@ -641,11 +772,13 @@ function TableMenuFlow({
                   return (
                     <article
                       key={product.id}
-                      className="bg-white rounded-2xl border border-[#E8E2D5] overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
+                      className={`bg-white rounded-2xl border border-[#E8E2D5] overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between ${
+                        isOutOfStock ? "opacity-75" : ""
+                      }`}
                     >
                       <div
                         className="relative h-44 w-full cursor-pointer overflow-hidden"
-                        onClick={() => setSelected(product)}
+                        onClick={() => !isOutOfStock && setSelected(product)}
                       >
                         <img
                           src={
@@ -655,6 +788,13 @@ function TableMenuFlow({
                           alt={product.name}
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                         />
+                        {isOutOfStock && (
+                          <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center z-10">
+                            <span className="px-3 py-1 rounded-full bg-rose-600 text-white text-[11px] font-bold uppercase tracking-wider shadow">
+                              Out of Stock
+                            </span>
+                          </div>
+                        )}
                         {product.is_meal_plan && (
                           <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-[#163E24] text-white text-[10px] font-bold tracking-wider uppercase">
                             26-Day Plan
@@ -679,8 +819,12 @@ function TableMenuFlow({
                         <div>
                           <div className="flex items-start justify-between gap-2">
                             <h3
-                              onClick={() => setSelected(product)}
-                              className="font-serif font-bold text-base text-[#163E24] hover:text-[#1B4D2E] cursor-pointer"
+                              onClick={() => !isOutOfStock && setSelected(product)}
+                              className={`font-serif font-bold text-base ${
+                                isOutOfStock
+                                  ? "text-stone-500 cursor-not-allowed"
+                                  : "text-[#163E24] hover:text-[#1B4D2E] cursor-pointer"
+                              }`}
                             >
                               {product.name}
                             </h3>
@@ -710,7 +854,15 @@ function TableMenuFlow({
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-[#F0EBE1] flex items-center justify-between">
-                          {hasMods ? (
+                          {isOutOfStock ? (
+                            <Button
+                              size="sm"
+                              disabled
+                              className="w-full rounded-full bg-stone-100 border border-stone-200 text-stone-400 text-xs font-bold h-9 cursor-not-allowed"
+                            >
+                              Sold Out
+                            </Button>
+                          ) : hasMods ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -900,21 +1052,18 @@ function TableMenuFlow({
                   </div>
                 </div>
 
-                {/* Bill Summary */}
-                <div className="bg-white rounded-3xl p-5 border border-[#E8E2D5] shadow-2xs space-y-2">
-                  <div className="flex justify-between text-xs text-[#5D665A]">
+                {/* Order Summary (GST is not shown while placing order; calculated only upon bill payment) */}
+                <div className="bg-white rounded-3xl p-5 border border-[#E8E2D5] shadow-2xs space-y-2.5">
+                  <div className="flex justify-between text-sm font-semibold text-[#163E24]">
                     <span>Item Subtotal</span>
-                    <span>{inr(cart.subtotal)}</span>
+                    <span className="font-bold">{inr(cart.subtotal)}</span>
                   </div>
-                  {taxPercent > 0 && (
-                    <div className="flex justify-between text-xs text-[#5D665A]">
-                      <span>{taxName} ({taxPercent}%)</span>
-                      <span>{inr(cartTax)}</span>
-                    </div>
-                  )}
+                  <p className="text-[11px] text-[#7A8578] italic">
+                    * Applicable GST will be calculated on your final table bill upon payment.
+                  </p>
                   <div className="flex justify-between text-base font-serif font-bold text-[#163E24] pt-2 border-t border-[#F0EBE1]">
-                    <span>Total Amount</span>
-                    <span>{inr(cartTotal)}</span>
+                    <span>Order Total</span>
+                    <span>{inr(cart.subtotal)}</span>
                   </div>
                 </div>
 
@@ -928,7 +1077,7 @@ function TableMenuFlow({
                   {placeOrderMutation.isPending ? (
                     <span>Sending to Kitchen...</span>
                   ) : (
-                    <span>Place Order to Kitchen • {inr(cartTotal)}</span>
+                    <span>Place Order to Kitchen • {inr(cart.subtotal)}</span>
                   )}
                 </Button>
               </div>
@@ -970,73 +1119,39 @@ function TableMenuFlow({
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Orders List */}
+                {/* Orders List with 8-Minute Countdown & Live Progression */}
                 {activeOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="bg-white rounded-3xl p-5 border border-[#E8E2D5] shadow-2xs space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-serif font-bold text-base text-[#163E24]">
-                          {order.order_number}
-                        </span>
-                        <span className="text-[11px] text-[#7A8578] block">
-                          Placed at {istTime(order.created_at)}
-                        </span>
-                      </div>
-                      <Badge className="bg-[#EAF2EC] text-[#1B4D2E] border-[#CDE1D2]">
-                        {statusLabel[order.status] || order.status}
-                      </Badge>
-                    </div>
-
-                    {/* Progress Step Indicator */}
-                    <div className="pt-1.5 pb-2">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        {ORDER_FLOW.map((step, idx) => {
-                          const currentIdx = ORDER_FLOW.indexOf(order.status as any);
-                          const isDone = currentIdx >= 0 && idx <= currentIdx;
-                          const isCurrent = currentIdx === idx;
-                          return (
-                            <div key={step} className="flex-1 flex flex-col items-center">
-                              <div
-                                className={`h-1.5 w-full rounded-full transition-all ${
-                                  isDone ? "bg-[#1B4D2E]" : "bg-[#EDE9E1]"
-                                } ${isCurrent ? "ring-2 ring-[#88B04B]/60" : ""}`}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-[#7A8578] font-semibold uppercase px-0.5">
-                        <span className="text-[#1B4D2E]">Placed</span>
-                        <span className="text-[#163E24] font-bold bg-[#EAF2EC] px-2 py-0.5 rounded-md text-[9px] tracking-wide">
-                          {statusLabel[order.status] || order.status}
-                        </span>
-                        <span className={order.status === "COMPLETED" ? "text-[#1B4D2E]" : "text-[#A1A89F]"}>Served</span>
-                      </div>
-                    </div>
-
-                    {/* Item list */}
-                    <div className="border-t border-[#F0EBE1] pt-3 space-y-1.5">
-                      {(order.items ?? []).map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-xs text-[#4F584C]">
-                          <span>
-                            {item.quantity}× {item.name || item.product_name}
-                          </span>
-                          <span className="font-semibold">{inr(Number(item.line_total))}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <CustomerOrderCard key={order.id} order={order} />
                 ))}
 
-                {/* Table Bill & Payment Card */}
+                {/* Table Bill & Payment Card (GST is visible here) */}
                 <div className="bg-[#163E24] text-white rounded-3xl p-6 shadow-md space-y-4">
+                  {/* Bill Items & Tax Breakdown */}
+                  <div className="space-y-2 border-b border-white/15 pb-3.5">
+                    <div className="flex justify-between text-xs text-white/80">
+                      <span>Items Subtotal</span>
+                      <span className="font-semibold">{inr(state?.bill?.subtotal ?? billTotal)}</span>
+                    </div>
+
+                    {Boolean(state?.bill?.discount && state.bill.discount > 0) && (
+                      <div className="flex justify-between text-xs text-[#88B04B]">
+                        <span>Discount Applied</span>
+                        <span className="font-semibold">-{inr(state.bill.discount)}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between text-xs text-white/80">
+                      <span>
+                        {state?.bill?.taxName || taxName} ({state?.bill?.taxPercent ?? taxPercent}%)
+                      </span>
+                      <span className="font-semibold">{inr(state?.bill?.taxAmount ?? 0)}</span>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[10px] uppercase font-bold tracking-wider text-[#88B04B] block">
-                        TABLE BILL
+                        TOTAL PAYABLE
                       </span>
                       <h3 className="font-serif text-2xl font-bold text-white">
                         {inr(billTotal)}

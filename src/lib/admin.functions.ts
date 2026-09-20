@@ -166,12 +166,53 @@ export const getKitchenOrders = createServerFn({ method: "GET" })
     await staff(context);
     const { admin } = await import("./cafe.server");
     const db = await admin();
-    const { data } = await db
+    const { data: rawOrders } = await db
       .from("orders")
       .select("*, order_items(*), cafe_tables(name), table_sessions(code, payment_state)")
       .in("status", ["PLACED", "ACCEPTED", "PREPARING", "READY"])
       .order("created_at");
-    return data ?? [];
+
+    const orders = rawOrders ?? [];
+    const now = Date.now();
+    const updates: Promise<any>[] = [];
+
+    for (const order of orders) {
+      const elapsedMs = now - new Date(order.created_at).getTime();
+      // Auto-progress PLACED to ACCEPTED after 5 seconds
+      if (order.status === "PLACED" && elapsedMs >= 5000) {
+        order.status = "ACCEPTED";
+        updates.push(
+          db
+            .from("orders")
+            .update({
+              status: "ACCEPTED",
+              accepted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", order.id),
+        );
+      }
+      // Auto-progress ACCEPTED to PREPARING after 3.5 minutes (210s)
+      if (order.status === "ACCEPTED" && elapsedMs >= 210000) {
+        order.status = "PREPARING";
+        updates.push(
+          db
+            .from("orders")
+            .update({
+              status: "PREPARING",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", order.id),
+          db.from("cafe_tables").update({ status: "FOOD_PREPARING" }).eq("id", order.table_id),
+        );
+      }
+    }
+
+    if (updates.length > 0) {
+      await Promise.allSettled(updates);
+    }
+
+    return orders;
   });
 
 export const updateOrderStatus = createServerFn({ method: "POST" })
@@ -413,7 +454,7 @@ export const setProductStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ context, data }) => {
-    const me = await staff(context, ["MANAGER"]);
+    const me = await staff(context, ["MANAGER", "KITCHEN_STAFF"]);
     const { admin, logAudit } = await import("./cafe.server");
     const db = await admin();
     const { error } = await db

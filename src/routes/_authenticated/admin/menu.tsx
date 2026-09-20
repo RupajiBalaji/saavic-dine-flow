@@ -288,8 +288,35 @@ function MenuManagementPage() {
                     )}
                   </div>
 
-                  {/* Actions: Unhide / Hide / Edit */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Actions: Out of Stock / Unhide / Hide / Edit */}
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {/* Fast Out of Stock toggle */}
+                    {isOutOfStock ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 gap-1"
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate({ id: prod.id, status: "AVAILABLE" })}
+                        title="Mark dish as In Stock & Available"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        In Stock
+                      </Button>
+                    ) : isAvailable ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs font-medium text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10 gap-1"
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate({ id: prod.id, status: "OUT_OF_STOCK" })}
+                        title="Mark dish Out of Stock (86)"
+                      >
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        86 Out
+                      </Button>
+                    ) : null}
+
                     {isHidden ? (
                       <Button
                         size="sm"

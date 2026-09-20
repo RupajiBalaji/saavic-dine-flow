@@ -175,8 +175,52 @@ const sessionAuth = z.object({ sessionId: z.string().uuid(), sessionToken: z.str
 export const getSessionState = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => sessionAuth.parse(d))
   .handler(async ({ data }) => {
-    const { loadSessionByToken, computeBill } = await import("./cafe.server");
+    const { loadSessionByToken, computeBill, admin } = await import("./cafe.server");
     const session = await loadSessionByToken(data.sessionId, data.sessionToken);
+    const db = await admin();
+    const now = Date.now();
+
+    // Check for auto-progression on active orders
+    const { data: rawOrders } = await db
+      .from("orders")
+      .select("id, status, created_at, table_id")
+      .eq("session_id", session.id)
+      .in("status", ["PLACED", "ACCEPTED"]);
+
+    if (rawOrders && rawOrders.length > 0) {
+      const updates: Promise<any>[] = [];
+      for (const o of rawOrders) {
+        const elapsedMs = now - new Date(o.created_at).getTime();
+        if (o.status === "PLACED" && elapsedMs >= 5000) {
+          updates.push(
+            db
+              .from("orders")
+              .update({
+                status: "ACCEPTED",
+                accepted_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", o.id),
+          );
+        }
+        if (o.status === "ACCEPTED" && elapsedMs >= 210000) {
+          updates.push(
+            db
+              .from("orders")
+              .update({
+                status: "PREPARING",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", o.id),
+            db.from("cafe_tables").update({ status: "FOOD_PREPARING" }).eq("id", o.table_id),
+          );
+        }
+      }
+      if (updates.length > 0) {
+        await Promise.allSettled(updates);
+      }
+    }
+
     const bill = await computeBill(session.id);
     return {
       session: {
