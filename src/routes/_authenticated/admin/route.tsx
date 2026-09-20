@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   ReceiptText,
@@ -12,12 +12,16 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Leaf,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyStaffProfile } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { istDate } from "@/lib/format";
+import { istDate, inr } from "@/lib/format";
+import { playNewOrderTing, playOrderReadyChime, isSoundEnabled, setSoundEnabled } from "@/lib/sounds";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
@@ -63,6 +67,66 @@ function AdminLayout() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
+
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+
+  const handleToggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+    if (next) {
+      playNewOrderTing();
+      toast.success("Alert sounds enabled (Test Ting)");
+    } else {
+      toast.info("Alert sounds muted");
+    }
+  };
+
+  // Realtime order sound alerts for Kitchen & Managers
+  useEffect(() => {
+    if (!me.data) return;
+
+    const channel = supabase
+      .channel("admin-orders-audio-alerts")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        (payload) => {
+          queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["kitchen-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-tables"] });
+
+          // 1. New Order Received (Counter Bell "Ting") -> For Kitchen & Manager
+          if (payload.eventType === "INSERT") {
+            const order = payload.new as any;
+            playNewOrderTing();
+            toast.info(`🔔 New Order #${order.order_number || "SV"} received!`, {
+              description: `Amount: ${inr(order.total || order.subtotal || 0)}`,
+              duration: 6000,
+            });
+          }
+
+          // 2. Order Ready to Serve (Dining Bell Chime) -> For Manager / Staff
+          if (payload.eventType === "UPDATE") {
+            const updated = payload.new as any;
+            const old = payload.old as any;
+            if (updated.status === "READY" && old?.status !== "READY") {
+              playOrderReadyChime();
+              toast.success(`🍽️ Order #${updated.order_number || "SV"} is READY to serve!`, {
+                description: "Kitchen has prepared the order. Ready for pickup and serving to table.",
+                duration: 8000,
+              });
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [me.data, queryClient]);
 
   // Enforce strict role-based route access
   useEffect(() => {
@@ -153,15 +217,32 @@ function AdminLayout() {
               <p className="text-xs text-muted-foreground">{istDate()} · IST</p>
             </div>
           </div>
-          <div className="text-right text-xs">
-            {me.isLoading ? (
-              <Skeleton className="h-4 w-24" />
-            ) : (
-              <>
-                <p className="font-medium">{me.data?.email}</p>
-                <p className="text-muted-foreground">{me.data?.roles.join(" · ")}</p>
-              </>
-            )}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleSound}
+              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5 border-border/80"
+              title={soundOn ? "Mute audio alerts" : "Unmute audio alerts"}
+            >
+              {soundOn ? (
+                <Volume2 className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="hidden sm:inline">{soundOn ? "Alerts On" : "Muted"}</span>
+            </Button>
+
+            <div className="text-right text-xs">
+              {me.isLoading ? (
+                <Skeleton className="h-4 w-24" />
+              ) : (
+                <>
+                  <p className="font-medium">{me.data?.email}</p>
+                  <p className="text-muted-foreground">{me.data?.roles.join(" · ")}</p>
+                </>
+              )}
+            </div>
           </div>
         </header>
 

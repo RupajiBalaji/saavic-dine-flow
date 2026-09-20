@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { inr, istTime } from "@/lib/format";
+import { playNewOrderTing } from "@/lib/sounds";
 
 export const Route = createFileRoute("/_authenticated/admin/kitchen")({
   component: KitchenDisplayPage,
@@ -87,12 +88,15 @@ function KitchenDisplayPage() {
     enabled: isAvailabilityOpen,
   });
 
-  // Realtime subscription on orders
+  // Realtime subscription on orders + sound alert for new orders
   useEffect(() => {
     const channel = supabase
       .channel("kitchen-orders-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
         queryClient.invalidateQueries({ queryKey: ["kitchen-orders"] });
+        if (payload.eventType === "INSERT") {
+          playNewOrderTing();
+        }
       })
       .subscribe();
     return () => {
