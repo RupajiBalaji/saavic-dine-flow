@@ -339,22 +339,24 @@ export const closeTable = createServerFn({ method: "POST" })
     const bill = await computeBill(data.sessionId);
     if (!bill.session || bill.session.status !== "ACTIVE") throw new Error("This session is already closed.");
 
-    const openOrders = bill.orders.filter(
-      (o) => !["SERVED", "COMPLETED", "CANCELLED"].includes(o.status),
-    );
-    if (openOrders.length > 0)
-      throw new Error("Some orders are still in progress. Mark them served before closing.");
     if (bill.due > 0) throw new Error("Payment is still pending. Record the payment before closing.");
+
+    // Auto-complete all non-cancelled orders for this session so the table is fully freed
+    await db
+      .from("orders")
+      .update({
+        status: "COMPLETED",
+        served_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("session_id", data.sessionId)
+      .neq("status", "CANCELLED");
 
     await db
       .from("table_sessions")
       .update({ status: "CLOSED", closed_at: new Date().toISOString(), closed_by: me.userId })
       .eq("id", data.sessionId);
-    await db
-      .from("orders")
-      .update({ status: "COMPLETED" })
-      .eq("session_id", data.sessionId)
-      .eq("status", "SERVED");
+
     await db.from("cafe_tables").update({ status: "AVAILABLE" }).eq("id", bill.session.table_id);
     await logAudit({
       user_id: me.userId,

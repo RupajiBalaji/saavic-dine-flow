@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { getManagerTableFeed, markCashPaid, closeTable } from "@/lib/admin.functions";
+import { getManagerTableFeed, markCashPaid, closeTable, updateOrderStatus } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,6 +40,7 @@ function TablesPage() {
   const feedFn = useServerFn(getManagerTableFeed);
   const markCashFn = useServerFn(markCashPaid);
   const closeTableFn = useServerFn(closeTable);
+  const updateStatusFn = useServerFn(updateOrderStatus);
 
   const feedQuery = useQuery({
     queryKey: ["manager-table-feed"],
@@ -112,6 +113,25 @@ function TablesPage() {
       setSelectedTable(null);
     },
     onError: (err: Error) => toast.error(err.message || "Cannot close table yet."),
+  });
+
+  const markOrderServedMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return await updateStatusFn({ data: { orderId, status: "SERVED" } });
+    },
+    onSuccess: (_, orderId) => {
+      toast.success("Order marked as Served.");
+      queryClient.invalidateQueries({ queryKey: ["manager-table-feed"] });
+      if (selectedTable) {
+        setSelectedTable({
+          ...selectedTable,
+          orders: (selectedTable.orders ?? []).map((o: any) =>
+            o.id === orderId ? { ...o, status: "SERVED" } : o
+          ),
+        });
+      }
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to update order status."),
   });
 
   const printBill = (table: any) => {
@@ -365,17 +385,43 @@ function TablesPage() {
 
                   <div className="max-h-48 overflow-y-auto divide-y divide-border/40 text-xs">
                     <p className="pb-1 font-semibold text-muted-foreground">Orders on this Table:</p>
-                    {(selectedTable.orders ?? []).map((o: any) => (
-                      <div key={o.id} className="py-2">
-                        <div className="flex items-center justify-between font-medium">
-                          <span>
-                            {o.order_number} ({statusLabel[o.status] || o.status})
-                          </span>
-                          <span>{inr(o.total)}</span>
+                    {(selectedTable.orders ?? []).map((o: any) => {
+                      const isServedOrDone = ["SERVED", "COMPLETED", "CANCELLED"].includes(o.status);
+                      return (
+                        <div key={o.id} className="py-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium">{o.order_number}</span>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] px-1.5 py-0 ${
+                                  o.status === "SERVED" || o.status === "COMPLETED"
+                                    ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
+                                    : o.status === "READY"
+                                      ? "border-purple-500/30 text-purple-600 bg-purple-500/10"
+                                      : "border-amber-500/30 text-amber-600 bg-amber-500/10"
+                                }`}
+                              >
+                                {statusLabel[o.status] || o.status}
+                              </Badge>
+                              <span className="text-muted-foreground ml-auto sm:ml-0 font-medium">{inr(o.total)}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{o.items.join(", ")}</p>
+                          </div>
+                          {!isServedOrDone && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] shrink-0 border-emerald-500/40 hover:bg-emerald-50 text-emerald-700 font-medium"
+                              disabled={markOrderServedMutation.isPending}
+                              onClick={() => markOrderServedMutation.mutate(o.id)}
+                            >
+                              Mark Served
+                            </Button>
+                          )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">{o.items.join(", ")}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="border-t border-border pt-3">
