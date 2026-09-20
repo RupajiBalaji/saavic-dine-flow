@@ -47,6 +47,11 @@ import bitesImg from "@/assets/quick-bites.jpg";
 import shotsImg from "@/assets/shots.jpg";
 
 export const Route = createFileRoute("/menu")({
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      table: typeof search.table === "string" ? search.table : undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Menu & Dine-in Ordering | Saavic Healthy Café" },
@@ -94,25 +99,41 @@ function loadRazorpayScript() {
 
 function MenuOrderingPage() {
   const queryClient = useQueryClient();
+  const search = Route.useSearch();
+  const urlTable = search.table;
 
   // Active table state (defaults to URL param or localStorage if present; otherwise null so it prompts table selection)
   const [selectedSlug, setSelectedSlug] = useState<string | null>(() => {
+    if (urlTable) return urlTable;
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const urlTable = urlParams.get("table");
-      if (urlTable) return urlTable;
+      const paramTable = urlParams.get("table");
+      if (paramTable) return paramTable;
       return localStorage.getItem("saavic:last-table") || null;
     }
     return null;
   });
 
+  // Sync selectedSlug whenever URL table parameter changes
+  useEffect(() => {
+    if (urlTable && urlTable !== selectedSlug) {
+      setSelectedSlug(urlTable);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("saavic:last-table", urlTable);
+      }
+    }
+  }, [urlTable, selectedSlug]);
+
   const [showTablePicker, setShowTablePicker] = useState(false);
 
-  // When a table is chosen, remember it
+  // When a table is chosen, remember it and update URL
   const handleSelectTable = (slug: string) => {
     setSelectedSlug(slug);
     if (typeof window !== "undefined") {
       localStorage.setItem("saavic:last-table", slug);
+      const url = new URL(window.location.href);
+      url.searchParams.set("table", slug);
+      window.history.replaceState({}, "", url.toString());
     }
     setShowTablePicker(false);
   };

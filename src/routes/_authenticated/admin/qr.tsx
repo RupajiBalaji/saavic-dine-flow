@@ -54,7 +54,7 @@ function TableQrPage() {
       for (let i = 1; i <= 20; i++) {
         const num = String(i).padStart(2, "0");
         const slug = `table-${num}`;
-        const url = `${base}/t/${slug}`;
+        const url = `${base}/menu?table=${slug}`;
         try {
           const qrDataUrl = await QRCode.toDataURL(url, {
             width: 800,
@@ -92,7 +92,7 @@ function TableQrPage() {
 
   const copyUrl = (slug: string) => {
     const base = domain.replace(/\/$/, "");
-    const url = `${base}/t/${slug}`;
+    const url = `${base}/menu?table=${slug}`;
     navigator.clipboard.writeText(url);
     setCopiedSlug(slug);
     toast.success(`Copied ${url}`);
@@ -227,7 +227,7 @@ function TableQrPage() {
       {/* Grid of Printable Table Stand Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 print:grid-cols-2 print:gap-4">
         {filteredTables.map((table) => {
-          const targetUrl = `${domain.replace(/\/$/, "")}/t/${table.slug}`;
+          const targetUrl = `${domain.replace(/\/$/, "")}/menu?table=${table.slug}`;
 
           return (
             <div
@@ -261,7 +261,7 @@ function TableQrPage() {
                   )}
                 </div>
                 <span className="mt-2 font-mono text-[11px] text-muted-foreground">
-                  /t/{table.slug}
+                  /menu?table={table.slug}
                 </span>
               </div>
 
