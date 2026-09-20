@@ -4,12 +4,12 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=optional && npm run build
     startCommand: npm start
     healthCheckPath: /
     envVars:
       - key: NODE_VERSION
-        value: 20.18.0
+        value: 22.14.0
       - key: NITRO_PRESET
         value: node-server
       - key: SUPABASE_PROJECT_ID

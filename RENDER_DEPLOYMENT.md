@@ -13,7 +13,7 @@ This repository is pre-configured with a Render Blueprint (`render.yaml`) and a 
 4. Render will automatically detect `render.yaml` and configure:
    - **Service Name**: `saavic-healthy-cafe`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build`
+   - **Build Command**: `npm install --include=optional && npm run build`
    - **Start Command**: `npm start`
 5. Fill in the required environment variables prompted on screen (values listed below).
 6. Click **Apply**. Render will build and deploy your application.
@@ -29,7 +29,7 @@ If you prefer creating a Web Service manually:
    - **Language**: `Node`
    - **Branch**: `main`
    - **Region**: `Singapore` (or closest to your users)
-   - **Build Command**: `npm install && npm run build`
+   - **Build Command**: `npm install --include=optional && npm run build`
    - **Start Command**: `npm start`
    - **Plan**: `Free`
 4. In the **Environment Variables** tab, add the variables below.
@@ -43,7 +43,7 @@ Copy and paste these into your Render Environment settings:
 
 | Variable | Value |
 |---|---|
-| `NODE_VERSION` | `20.18.0` |
+| `NODE_VERSION` | `22.14.0` |
 | `NITRO_PRESET` | `node-server` |
 | `SUPABASE_PROJECT_ID` | `xsxwlidsbmicqhcwbmak` |
 | `SUPABASE_URL` | `https://xsxwlidsbmicqhcwbmak.supabase.co` |

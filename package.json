@@ -13,7 +13,10 @@
     "format": "prettier --write ."
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.2.1"
   },
   "overrides": {
     "rolldown": "1.2.1"
