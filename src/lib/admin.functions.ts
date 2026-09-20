@@ -4,7 +4,7 @@ import { z } from "zod";
 
 type Ctx = { supabase: { rpc: (fn: string, args: unknown) => Promise<{ data: unknown }> }; userId: string; claims: Record<string, unknown> };
 
-type Role = "SUPER_ADMIN" | "MANAGER" | "KITCHEN_STAFF" | "CASHIER";
+type Role = "SUPER_ADMIN" | "MANAGER" | "KITCHEN_STAFF";
 
 async function staff(context: unknown, allowed?: Role[]) {
   const ctx = context as Ctx & { supabase: { from: (t: string) => any } };
@@ -151,7 +151,7 @@ export const listOrders = createServerFn({ method: "GET" })
       .select("*, order_items(*), cafe_tables(name, slug), table_sessions(code, payment_state)")
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 100);
-    if (data.status && data.status !== "ALL") q = q.eq("status", data.status);
+    if (data.status && data.status !== "ALL") q = q.eq("status", data.status as any);
     if (data.search) q = q.ilike("order_number", `%${data.search}%`);
     if (data.from) q = q.gte("created_at", data.from);
     if (data.to) q = q.lte("created_at", data.to);
@@ -168,7 +168,7 @@ export const getKitchenOrders = createServerFn({ method: "GET" })
     const db = await admin();
     const { data } = await db
       .from("orders")
-      .select("*, order_items(*), cafe_tables(name)")
+      .select("*, order_items(*), cafe_tables(name), table_sessions(code, payment_state)")
       .in("status", ["PLACED", "ACCEPTED", "PREPARING", "READY"])
       .order("created_at");
     return data ?? [];
@@ -186,17 +186,27 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ context, data }) => {
-    const me = await staff(context, ["MANAGER", "KITCHEN_STAFF", "CASHIER"]);
+    const me = await staff(context, ["MANAGER", "KITCHEN_STAFF"]);
     const { admin, logAudit } = await import("./cafe.server");
     const db = await admin();
     if (data.status === "CANCELLED" && !data.reason?.trim())
       throw new Error("A cancellation reason is required.");
 
-    const patch: Record<string, unknown> = { status: data.status, updated_at: new Date().toISOString() };
-    if (data.status === "ACCEPTED") patch["accepted_at"] = new Date().toISOString();
-    if (data.status === "READY") patch["ready_at"] = new Date().toISOString();
-    if (data.status === "SERVED") patch["served_at"] = new Date().toISOString();
-    if (data.status === "CANCELLED") patch["cancel_reason"] = data.reason?.trim();
+    const patch: {
+      status: "PLACED" | "ACCEPTED" | "PREPARING" | "READY" | "SERVED" | "COMPLETED" | "CANCELLED";
+      updated_at: string;
+      accepted_at?: string | null;
+      ready_at?: string | null;
+      served_at?: string | null;
+      cancel_reason?: string | null;
+    } = {
+      status: data.status,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.status === "ACCEPTED") patch.accepted_at = new Date().toISOString();
+    if (data.status === "READY") patch.ready_at = new Date().toISOString();
+    if (data.status === "SERVED") patch.served_at = new Date().toISOString();
+    if (data.status === "CANCELLED") patch.cancel_reason = data.reason?.trim() ?? null;
 
     const { data: order, error } = await db
       .from("orders")
@@ -226,40 +236,63 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
 
 export const markCashPaid = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ sessionId: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        sessionId: z.string().uuid(),
+        method: z.enum(["CASH", "UPI", "CARD"]).optional(),
+        referenceNumber: z.string().max(80).optional(),
+        notes: z.string().max(200).optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ context, data }) => {
-    const me = await staff(context, ["MANAGER", "CASHIER"]);
+    const me = await staff(context, ["MANAGER"]);
     const { admin, computeBill, logAudit } = await import("./cafe.server");
     const db = await admin();
     const bill = await computeBill(data.sessionId);
     if (bill.due <= 0) return { ok: true, alreadyPaid: true };
-    await db.from("payments").insert({
+
+    const method = data.method ?? "CASH";
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const txnId = data.referenceNumber?.trim() || `TXN-${method}-${dateStr}-${randomSuffix}`;
+    const paidAt = now.toISOString();
+
+    const { error: pErr } = await db.from("payments").insert({
       session_id: data.sessionId,
       table_id: bill.session!.table_id,
-      provider: "CASH",
+      provider: method,
       amount: bill.due,
       status: "SUCCESS",
-      method: "CASH",
+      method: method,
+      razorpay_payment_id: txnId,
       recorded_by: me.userId,
-      notes: `Cash recorded by ${me.email ?? me.userId}`,
+      notes: data.notes?.trim() || `${method} recorded by ${me.email ?? me.userId} (Txn: ${txnId})`,
     });
+    if (pErr) throw new Error(pErr.message);
+
     await db.from("table_sessions").update({ payment_state: "CASH_PAID" }).eq("id", data.sessionId);
+    await db.from("cafe_tables").update({ status: "PAID" }).eq("id", bill.session!.table_id);
+
     await logAudit({
       user_id: me.userId,
       user_email: me.email,
-      action: "CASH_PAYMENT_RECORDED",
-      object_type: "session",
-      object_id: data.sessionId,
-      description: `Cash ₹${bill.due} recorded for ${bill.session!.code}`,
+      action: "PAYMENT_RECORDED",
+      object_type: "payment",
+      object_id: txnId,
+      description: `${method} payment of ₹${bill.due} recorded for table session ${bill.session!.code}. Txn ID: ${txnId}`,
     });
-    return { ok: true, amount: bill.due };
+
+    return { ok: true, amount: bill.due, transactionId: txnId, paidAt, method };
   });
 
 export const closeTable = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ sessionId: z.string().uuid() }).parse(d))
   .handler(async ({ context, data }) => {
-    const me = await staff(context, ["MANAGER", "CASHIER"]);
+    const me = await staff(context, ["MANAGER"]);
     const { admin, computeBill, logAudit } = await import("./cafe.server");
     const db = await admin();
     const bill = await computeBill(data.sessionId);
@@ -319,16 +352,33 @@ export const saveProduct = createServerFn({ method: "POST" })
     const me = await staff(context, ["MANAGER"]);
     const { admin, logAudit } = await import("./cafe.server");
     const db = await admin();
-    const { error } = data.id
-      ? await db.from("products").update({ ...data, updated_at: new Date().toISOString() }).eq("id", data.id)
-      : await db.from("products").insert(data);
+    const { id, ...rest } = data;
+    const payload = {
+      name: data.name,
+      slug: data.slug,
+      price: data.price,
+      status: data.status,
+      category_id: data.category_id ?? null,
+      description: data.description ?? null,
+      ingredients: data.ingredients ?? null,
+      image_url: data.image_url ?? null,
+      prep_minutes: data.prep_minutes ?? 15,
+      calories: data.calories ?? null,
+      protein_g: data.protein_g ?? null,
+      carbs_g: data.carbs_g ?? null,
+      fats_g: data.fats_g ?? null,
+      allergens: data.allergens ?? null,
+    };
+    const { error } = id
+      ? await db.from("products").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id)
+      : await db.from("products").insert(payload);
     if (error) throw new Error(error.message);
     await logAudit({
       user_id: me.userId,
       user_email: me.email,
-      action: data.id ? "PRODUCT_UPDATED" : "PRODUCT_CREATED",
+      action: id ? "PRODUCT_UPDATED" : "PRODUCT_CREATED",
       object_type: "product",
-      object_id: data.id ?? data.slug,
+      object_id: id ?? data.slug,
       description: `${data.name} @ ₹${data.price} (${data.status})`,
     });
     return { ok: true };
@@ -352,6 +402,36 @@ export const deleteProduct = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const setProductStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum(["AVAILABLE", "OUT_OF_STOCK", "HIDDEN"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ context, data }) => {
+    const me = await staff(context, ["MANAGER"]);
+    const { admin, logAudit } = await import("./cafe.server");
+    const db = await admin();
+    const { error } = await db
+      .from("products")
+      .update({ status: data.status, updated_at: new Date().toISOString() })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    await logAudit({
+      user_id: me.userId,
+      user_email: me.email,
+      action: `PRODUCT_STATUS_${data.status}`,
+      object_type: "product",
+      object_id: data.id,
+      description: `Dish status set to ${data.status}`,
+    });
+    return { ok: true, status: data.status };
+  });
+
 export const saveCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -369,9 +449,10 @@ export const saveCategory = createServerFn({ method: "POST" })
     await staff(context, ["MANAGER"]);
     const { admin } = await import("./cafe.server");
     const db = await admin();
-    const { error } = data.id
-      ? await db.from("categories").update(data).eq("id", data.id)
-      : await db.from("categories").insert(data);
+    const { id, ...payload } = data;
+    const { error } = id
+      ? await db.from("categories").update(payload).eq("id", id)
+      : await db.from("categories").insert(payload);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -399,9 +480,10 @@ export const saveTable = createServerFn({ method: "POST" })
     await staff(context, ["MANAGER"]);
     const { admin } = await import("./cafe.server");
     const db = await admin();
-    const { error } = data.id
-      ? await db.from("cafe_tables").update(data).eq("id", data.id)
-      : await db.from("cafe_tables").insert(data);
+    const { id, ...payload } = data;
+    const { error } = id
+      ? await db.from("cafe_tables").update(payload).eq("id", id)
+      : await db.from("cafe_tables").insert(payload);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -410,7 +492,7 @@ export const saveTable = createServerFn({ method: "POST" })
 export const getAdminSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await staff(context);
+    await staff(context, ["SUPER_ADMIN"]);
     const { getSettings } = await import("./cafe.server");
     return await getSettings();
   });
@@ -431,6 +513,9 @@ export const saveSettings = createServerFn({ method: "POST" })
           closing_time: z.string().max(5),
           ordering_enabled: z.boolean(),
           enforce_hours: z.boolean(),
+          gstin: z.string().max(30).optional().default(""),
+          fssai: z.string().max(30).optional().default(""),
+          sac_code: z.string().max(20).optional().default("996331"),
         }),
         tax: z.object({
           name: z.string().max(30),
@@ -441,7 +526,7 @@ export const saveSettings = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ context, data }) => {
-    const me = await staff(context, ["MANAGER"]);
+    const me = await staff(context, ["SUPER_ADMIN"]);
     const { admin, logAudit } = await import("./cafe.server");
     const db = await admin();
     await db.from("settings").upsert([
@@ -508,9 +593,17 @@ export const saveDiscount = createServerFn({ method: "POST" })
     await staff(context, ["MANAGER"]);
     const { admin } = await import("./cafe.server");
     const db = await admin();
-    const payload = { ...data, code: data.code.trim().toUpperCase() };
-    const { error } = data.id
-      ? await db.from("discounts").update(payload).eq("id", data.id)
+    const { id, ...rest } = data;
+    const payload = {
+      code: data.code.trim().toUpperCase(),
+      type: data.type,
+      value: data.value,
+      min_order: data.min_order,
+      active: data.active,
+      usage_limit: data.usage_limit ?? null,
+    };
+    const { error } = id
+      ? await db.from("discounts").update(payload).eq("id", id)
       : await db.from("discounts").insert(payload);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -535,11 +628,159 @@ export const saveInventoryItem = createServerFn({ method: "POST" })
     await staff(context, ["MANAGER"]);
     const { admin } = await import("./cafe.server");
     const db = await admin();
-    const { error } = data.id
-      ? await db.from("inventory_items").update(data).eq("id", data.id)
-      : await db.from("inventory_items").insert(data);
+    const { id, ...rest } = data;
+    const payload = {
+      name: data.name,
+      unit: data.unit,
+      stock: data.stock,
+      min_stock: data.min_stock,
+      cost: data.cost,
+      supplier: data.supplier ?? null,
+    };
+    const { error } = id
+      ? await db.from("inventory_items").update(payload).eq("id", id)
+      : await db.from("inventory_items").insert(payload);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const getManagerTableFeed = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await staff(context, ["MANAGER"]);
+    const { admin, round2, getSettings } = await import("./cafe.server");
+    const db = await admin();
+    const { cafe, tax } = await getSettings();
+
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+    const [{ data: tables }, { data: sessions }, { data: recentPayments }] = await Promise.all([
+      db.from("cafe_tables").select("*").order("sort_order"),
+      db.from("table_sessions").select("*").eq("status", "ACTIVE"),
+      db
+        .from("payments")
+        .select("*, cafe_tables(name), table_sessions(code)")
+        .gte("created_at", twoHoursAgo)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const activeIds = (sessions ?? []).map((s) => s.id);
+    const [{ data: activeOrders }, { data: activePayments }] = await Promise.all([
+      activeIds.length
+        ? db
+            .from("orders")
+            .select("id, order_number, session_id, table_id, subtotal, tax_amount, total, status, created_at, order_items(*)")
+            .in("session_id", activeIds)
+        : Promise.resolve({ data: [] as any[] }),
+      activeIds.length
+        ? db
+            .from("payments")
+            .select("*")
+            .in("session_id", activeIds)
+            .eq("status", "SUCCESS")
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const tableCards = (tables ?? []).map((t) => {
+      const session = (sessions ?? []).find((s) => s.table_id === t.id) ?? null;
+      const orders = (activeOrders ?? []).filter((o) => o.session_id === session?.id && o.status !== "CANCELLED");
+      const subtotal = round2(orders.reduce((sum, o) => sum + Number(o.subtotal ?? o.total), 0));
+      const taxAmount = round2(orders.reduce((sum, o) => sum + Number(o.tax_amount ?? 0), 0));
+      const grandTotal = round2(orders.reduce((sum, o) => sum + Number(o.total), 0));
+      const cgst = round2(taxAmount / 2);
+      const sgst = round2(taxAmount - cgst);
+      const payment = session ? (activePayments ?? []).find((p) => p.session_id === session.id) : null;
+      const isPaid = session ? ["PAID", "CASH_PAID"].includes(session.payment_state) : false;
+
+      return {
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        capacity: t.capacity,
+        status: t.status,
+        session: session
+          ? {
+              id: session.id,
+              code: session.code,
+              payment_state: session.payment_state,
+              opened_at: session.opened_at,
+              customer_name: session.customer_name,
+            }
+          : null,
+        orderCount: orders.length,
+        billSubtotal: subtotal,
+        billTax: taxAmount,
+        billCgst: cgst,
+        billSgst: sgst,
+        taxRate: Number(tax.percent ?? 5),
+        taxName: tax.name ?? "GST",
+        billTotal: grandTotal,
+        isPaid,
+        cafe: {
+          name: cafe.name || "Saavic Healthy Café",
+          tagline: cafe.tagline || "EAT CLEAN • FEEL STRONG • LIVE BETTER",
+          address: cafe.address || "Plot 42, Road No. 36, Jubilee Hills, Hyderabad - 500033",
+          phone: cafe.phone || "+91 98765 43210",
+          gstin: cafe.gstin || "36AAGCS1234F1Z1",
+          fssai: cafe.fssai || "13624011000123",
+          sac_code: cafe.sac_code || "996331",
+        },
+        paidDetails: payment
+          ? {
+              transactionId: payment.razorpay_payment_id || payment.id,
+              paidAt: payment.created_at,
+              method: payment.method || payment.provider,
+              provider: payment.provider,
+              amount: Number(payment.amount),
+              notes: payment.notes,
+            }
+          : null,
+        orders: orders.map((o) => ({
+          id: o.id,
+          order_number: o.order_number,
+          status: o.status,
+          subtotal: Number(o.subtotal ?? o.total),
+          tax_amount: Number(o.tax_amount ?? 0),
+          total: Number(o.total),
+          created_at: o.created_at,
+          items: (o.order_items ?? []).map((i: any) => `${i.product_name} × ${i.quantity}`),
+          order_items: (o.order_items ?? []).map((i: any) => ({
+            id: i.id,
+            product_name: i.product_name,
+            quantity: i.quantity,
+            unit_price: Number(i.unit_price),
+            line_total: Number(i.line_total),
+          })),
+        })),
+      };
+    });
+
+    return {
+      tables: tableCards,
+      cafe: {
+        name: cafe.name || "Saavic Healthy Café",
+        tagline: cafe.tagline || "EAT CLEAN • FEEL STRONG • LIVE BETTER",
+        address: cafe.address || "Plot 42, Road No. 36, Jubilee Hills, Hyderabad - 500033",
+        phone: cafe.phone || "+91 98765 43210",
+        gstin: cafe.gstin || "36AAGCS1234F1Z1",
+        fssai: cafe.fssai || "13624011000123",
+        sac_code: cafe.sac_code || "996331",
+      },
+      recentPayments: (recentPayments ?? []).map((p) => ({
+        id: p.id,
+        transactionId: p.razorpay_payment_id || p.id,
+        amount: Number(p.amount),
+        provider: p.provider,
+        method: p.method || p.provider,
+        status: p.status,
+        tableName: (p as any).cafe_tables?.name ?? "Table",
+        sessionCode: (p as any).table_sessions?.code ?? "",
+        createdAt: p.created_at,
+        notes: p.notes,
+      })),
+      windowStart: twoHoursAgo,
+    };
   });
 
 export const getReports = createServerFn({ method: "GET" })
@@ -548,7 +789,15 @@ export const getReports = createServerFn({ method: "GET" })
     z.object({ from: z.string(), to: z.string() }).parse(d),
   )
   .handler(async ({ context, data }) => {
-    await staff(context, ["MANAGER", "CASHIER"]);
+    const me = await staff(context, ["MANAGER"]);
+    const isSuperAdmin = me.roles.includes("SUPER_ADMIN");
+
+    // Managers are strictly restricted to the last 2 hours. Full reports are reserved for Super Admin.
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    if (!isSuperAdmin && new Date(data.from) < new Date(twoHoursAgo)) {
+      throw new Error("Manager access is limited to recent payments (up to 2 hours). Full financial reports are restricted to Super Admin.");
+    }
+
     const { admin, round2 } = await import("./cafe.server");
     const db = await admin();
     const [{ data: orders }, { data: payments }] = await Promise.all([
@@ -600,6 +849,222 @@ export const getReports = createServerFn({ method: "GET" })
         total: Number(o.total),
         created_at: o.created_at,
       })),
+      isSuperAdmin,
+    };
+  });
+
+export const exportFinancialReports = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        period: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "TABLE", "CUSTOM"]),
+        from: z.string().optional(),
+        to: z.string().optional(),
+        tableSlug: z.string().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ context, data }) => {
+    // Strictly restricted to SUPER_ADMIN
+    await staff(context, ["SUPER_ADMIN"]);
+    const { admin, round2, getSettings } = await import("./cafe.server");
+    const db = await admin();
+    const settings = await getSettings();
+
+    const now = new Date();
+    let fromDate: Date;
+    let toDate: Date = new Date();
+    let periodLabel = "Report";
+
+    if (data.period === "DAILY") {
+      fromDate = new Date();
+      fromDate.setHours(0, 0, 0, 0);
+      periodLabel = `Daily_${fromDate.toISOString().slice(0, 10)}`;
+    } else if (data.period === "WEEKLY") {
+      fromDate = new Date();
+      const day = fromDate.getDay();
+      const diff = fromDate.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      fromDate.setDate(diff);
+      fromDate.setHours(0, 0, 0, 0);
+      periodLabel = `Weekly_${fromDate.toISOString().slice(0, 10)}_to_${toDate.toISOString().slice(0, 10)}`;
+    } else if (data.period === "MONTHLY") {
+      fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodLabel = `Monthly_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    } else if (data.period === "YEARLY") {
+      fromDate = new Date(now.getFullYear(), 0, 1);
+      periodLabel = `Yearly_${now.getFullYear()}`;
+    } else if (data.period === "TABLE") {
+      fromDate = new Date(now.getFullYear(), 0, 1); // whole year for this table
+      periodLabel = `Table_${data.tableSlug || "all"}`;
+    } else {
+      fromDate = data.from ? new Date(data.from) : new Date(now.getTime() - 30 * 86400000);
+      toDate = data.to ? new Date(data.to) : new Date();
+      periodLabel = `Custom_${fromDate.toISOString().slice(0, 10)}_to_${toDate.toISOString().slice(0, 10)}`;
+    }
+
+    let ordersQuery = db
+      .from("orders")
+      .select("*, order_items(*), cafe_tables(name, slug), table_sessions(code, payment_state)")
+      .gte("created_at", fromDate.toISOString())
+      .lte("created_at", toDate.toISOString())
+      .order("created_at", { ascending: false });
+
+    if (data.period === "TABLE" && data.tableSlug) {
+      const { data: tbl } = await db.from("cafe_tables").select("id").eq("slug", data.tableSlug).single();
+      if (tbl) ordersQuery = ordersQuery.eq("table_id", tbl.id);
+    }
+
+    const [{ data: orders }, { data: payments }] = await Promise.all([
+      ordersQuery,
+      db
+        .from("payments")
+        .select("*")
+        .gte("created_at", fromDate.toISOString())
+        .lte("created_at", toDate.toISOString()),
+    ]);
+
+    const validOrders = (orders ?? []).filter((o) => o.status !== "CANCELLED");
+
+    // Format Sheet 1: Detailed Bills
+    const bills = validOrders.map((o) => {
+      const dateObj = new Date(o.created_at);
+      const dateIST = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", dateStyle: "short" }).format(dateObj);
+      const timeIST = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", timeStyle: "medium" }).format(dateObj);
+      const payment = (payments ?? []).find((p) => p.session_id === o.session_id && p.status === "SUCCESS");
+      const itemsText = (o.order_items ?? []).map((i: any) => `${i.product_name} (${i.quantity}x)`).join("; ");
+
+      let paymentTimeIST = "-";
+      if (payment?.created_at) {
+        const pDate = new Date(payment.created_at);
+        paymentTimeIST = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Kolkata",
+          dateStyle: "short",
+          timeStyle: "medium",
+        }).format(pDate);
+      }
+
+      return {
+        "Bill / Order No.": o.order_number,
+        "Session Code": (o as any).table_sessions?.code || "-",
+        "Table": (o as any).cafe_tables?.name ?? "Table",
+        "Bill Date (IST)": dateIST,
+        "Bill Time (IST)": timeIST,
+        "Order Status": o.status,
+        "Payment Status": payment ? "PAID" : ((o as any).table_sessions?.payment_state || "PENDING"),
+        "Transaction ID": payment?.razorpay_payment_id || payment?.id || "-",
+        "Payment Time (IST)": paymentTimeIST,
+        "Payment Provider": payment ? (payment.provider === "CASH" ? "Cash at Counter" : payment.provider === "UPI" ? "UPI QR" : payment.provider === "CARD" ? "Card POS" : "Razorpay Online") : "Pending",
+        "Payment Method": payment?.method || (payment?.provider === "CASH" ? "CASH" : "ONLINE"),
+        "Customer Name": o.customer_name || "Guest",
+        "Phone": o.customer_phone || "-",
+        "Subtotal (INR)": Number(o.subtotal),
+        "Discount (INR)": Number(o.discount_amount),
+        "Taxable Value (INR)": Math.max(0, Number(o.subtotal) - Number(o.discount_amount)),
+        "GST (5%) (INR)": Number(o.tax_amount),
+        "Total Amount (INR)": Number(o.total),
+        "Items Summary": itemsText,
+      };
+    });
+
+    // Format Sheet 2: Payments & Transactions Ledger
+    const transactionsLedger = (payments ?? [])
+      .filter((p) => p.status === "SUCCESS")
+      .map((p) => {
+        const pDate = new Date(p.created_at);
+        const dateIST = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", dateStyle: "short" }).format(pDate);
+        const timeIST = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", timeStyle: "medium" }).format(pDate);
+        const orderForSession = validOrders.find((o) => o.session_id === p.session_id);
+        const tableName = (orderForSession as any)?.cafe_tables?.name || "Table";
+        const sessionCode = (orderForSession as any)?.table_sessions?.code || "-";
+
+        return {
+          "Transaction ID": p.razorpay_payment_id || p.id,
+          "Payment Date (IST)": dateIST,
+          "Payment Time (IST)": timeIST,
+          "Table": tableName,
+          "Session Code": sessionCode,
+          "Payment Method": p.method || p.provider,
+          "Payment Provider": p.provider === "CASH" ? "Cash at Counter" : p.provider === "UPI" ? "UPI QR" : p.provider === "CARD" ? "Card POS" : "Razorpay Online",
+          "Amount Paid (INR)": Number(p.amount),
+          "Status": p.status,
+          "Reference / Gateway ID": p.razorpay_payment_id || p.id,
+          "Notes": p.notes || "-",
+        };
+      });
+
+    // Format Sheet 3: Item-wise Sales
+    const itemMap = new Map<string, { name: string; category: string; qty: number; sales: number }>();
+    for (const o of validOrders) {
+      for (const i of o.order_items ?? []) {
+        const cur = itemMap.get(i.product_name) ?? { name: i.product_name, category: "Menu", qty: 0, sales: 0 };
+        cur.qty += i.quantity;
+        cur.sales = round2(cur.sales + Number(i.line_total));
+        itemMap.set(i.product_name, cur);
+      }
+    }
+    const itemSales = [...itemMap.values()]
+      .sort((a, b) => b.sales - a.sales)
+      .map((i) => ({
+        "Item Name": i.name,
+        "Category": i.category,
+        "Quantity Sold": i.qty,
+        "Total Sales (INR)": i.sales,
+      }));
+
+    // Format Sheet 4: Payment Breakdown & GST
+    const cashTotal = round2(
+      (payments ?? []).filter((p) => p.status === "SUCCESS" && p.provider === "CASH").reduce((s, p) => s + Number(p.amount), 0),
+    );
+    const onlineTotal = round2(
+      (payments ?? []).filter((p) => p.status === "SUCCESS" && p.provider !== "CASH").reduce((s, p) => s + Number(p.amount), 0),
+    );
+
+    const paymentSummary = [
+      {
+        "Payment Provider": "Cash at Counter",
+        "Transactions Count": (payments ?? []).filter((p) => p.status === "SUCCESS" && p.provider === "CASH").length,
+        "Total Collected (INR)": cashTotal,
+      },
+      {
+        "Payment Provider": "Razorpay (UPI / Card / Netbanking)",
+        "Transactions Count": (payments ?? []).filter((p) => p.status === "SUCCESS" && p.provider !== "CASH").length,
+        "Total Collected (INR)": onlineTotal,
+      },
+      {
+        "Payment Provider": "TOTAL REVENUE",
+        "Transactions Count": (payments ?? []).filter((p) => p.status === "SUCCESS").length,
+        "Total Collected (INR)": round2(cashTotal + onlineTotal),
+      },
+    ];
+
+    const totalSubtotal = round2(validOrders.reduce((s, o) => s + Number(o.subtotal), 0));
+    const totalTax = round2(validOrders.reduce((s, o) => s + Number(o.tax_amount), 0));
+    const totalGross = round2(validOrders.reduce((s, o) => s + Number(o.total), 0));
+
+    const taxSummary = [
+      {
+        "Tax Name": settings.tax.name || "GST",
+        "Tax Rate": `${settings.tax.percent || 5}%`,
+        "Taxable Amount (INR)": totalSubtotal,
+        "Tax Collected (INR)": totalTax,
+        "Gross Sales (INR)": totalGross,
+      },
+    ];
+
+    return {
+      periodLabel,
+      bills,
+      transactionsLedger,
+      itemSales,
+      paymentSummary,
+      taxSummary,
+      summary: {
+        totalSales: totalGross,
+        totalTax,
+        totalOrders: validOrders.length,
+        avgOrderValue: validOrders.length ? round2(totalGross / validOrders.length) : 0,
+      },
     };
   });
 
@@ -609,7 +1074,7 @@ export const assignRole = createServerFn({ method: "POST" })
     z
       .object({
         email: z.string().email(),
-        role: z.enum(["SUPER_ADMIN", "MANAGER", "KITCHEN_STAFF", "CASHIER"]),
+        role: z.enum(["SUPER_ADMIN", "MANAGER", "KITCHEN_STAFF"]),
       })
       .parse(d),
   )

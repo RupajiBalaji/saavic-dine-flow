@@ -23,16 +23,26 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
 });
 
-const NAV = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/admin/orders", label: "Orders", icon: ReceiptText },
-  { to: "/admin/tables", label: "Tables", icon: Grid3x3 },
-  { to: "/admin/kitchen", label: "Kitchen", icon: ChefHat },
-  { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed },
-  { to: "/admin/qr", label: "Table QR", icon: QrCode },
-  { to: "/admin/reports", label: "Reports", icon: BarChart3 },
-  { to: "/admin/settings", label: "Settings", icon: SettingsIcon },
-] as const;
+type NavRole = "SUPER_ADMIN" | "MANAGER" | "KITCHEN_STAFF";
+
+type NavItem = {
+  to: string;
+  label: string;
+  icon: any;
+  exact?: boolean;
+  roles?: NavRole[];
+};
+
+const NAV: NavItem[] = [
+  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true, roles: ["SUPER_ADMIN", "MANAGER"] },
+  { to: "/admin/tables", label: "Tables & Bills", icon: Grid3x3, roles: ["SUPER_ADMIN", "MANAGER"] },
+  { to: "/admin/reports", label: "Reports & Excel", icon: BarChart3, roles: ["SUPER_ADMIN"] },
+  { to: "/admin/kitchen", label: "Kitchen", icon: ChefHat, roles: ["SUPER_ADMIN", "MANAGER", "KITCHEN_STAFF"] },
+  { to: "/admin/orders", label: "Orders", icon: ReceiptText, roles: ["SUPER_ADMIN", "MANAGER", "KITCHEN_STAFF"] },
+  { to: "/admin/menu", label: "Menu", icon: UtensilsCrossed, roles: ["SUPER_ADMIN", "MANAGER"] },
+  { to: "/admin/qr", label: "Table QR", icon: QrCode, roles: ["SUPER_ADMIN", "MANAGER"] },
+  { to: "/admin/settings", label: "Settings", icon: SettingsIcon, roles: ["SUPER_ADMIN", "MANAGER"] },
+];
 
 function AdminLayout() {
   const navigate = useNavigate();
@@ -54,6 +64,36 @@ function AdminLayout() {
     navigate({ to: "/auth", replace: true });
   };
 
+  // Enforce strict role-based route access
+  useEffect(() => {
+    if (!me.data) return;
+    const userRoles = (me.data.roles ?? []) as NavRole[];
+    const isSuperAdmin = userRoles.includes("SUPER_ADMIN");
+    if (isSuperAdmin) return; // Super admin can access every page
+
+    // If kitchen staff lands on root /admin, redirect to /admin/kitchen
+    if (pathname === "/admin" && userRoles.includes("KITCHEN_STAFF") && !userRoles.includes("MANAGER")) {
+      navigate({ to: "/admin/kitchen", replace: true });
+      return;
+    }
+
+    // Check if the current route is allowed for user's assigned roles
+    const currentNavItem = NAV.find((item) =>
+      item.exact ? pathname === item.to : pathname.startsWith(item.to),
+    );
+
+    if (currentNavItem && currentNavItem.roles) {
+      const hasAccess = currentNavItem.roles.some((r) => userRoles.includes(r));
+      if (!hasAccess) {
+        if (userRoles.includes("KITCHEN_STAFF") && !userRoles.includes("MANAGER")) {
+          navigate({ to: "/admin/kitchen", replace: true });
+        } else if (userRoles.includes("MANAGER")) {
+          navigate({ to: "/admin", replace: true });
+        }
+      }
+    }
+  }, [pathname, me.data, navigate]);
+
   if (me.isError) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
@@ -68,6 +108,13 @@ function AdminLayout() {
     );
   }
 
+  const userRoles = (me.data?.roles ?? []) as NavRole[];
+  const isSuperAdmin = userRoles.includes("SUPER_ADMIN");
+  const visibleNav = NAV.filter((item) => {
+    if (!item.roles || isSuperAdmin) return true;
+    return item.roles.some((r) => userRoles.includes(r));
+  });
+
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar px-3 py-5 text-sidebar-foreground md:flex">
@@ -76,12 +123,12 @@ function AdminLayout() {
           <p className="text-[10px] tracking-[0.25em] opacity-70">HEALTHY CAFÉ</p>
         </div>
         <nav className="flex-1 space-y-1">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                to={item.to as any}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                   active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60"
                 }`}
@@ -119,10 +166,10 @@ function AdminLayout() {
         </header>
 
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card px-2 py-2 md:hidden">
-          {NAV.map((item) => (
+          {visibleNav.map((item) => (
             <Link
               key={item.to}
-              to={item.to}
+              to={item.to as any}
               className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs"
             >
               {item.label}

@@ -208,6 +208,16 @@ export const getSessionState = createServerFn({ method: "GET" })
         total: bill.total,
         paid: bill.paid,
         due: bill.due,
+        payments: (bill.payments ?? [])
+          .filter((p) => p.status === "SUCCESS")
+          .map((p) => ({
+            id: p.id,
+            transactionId: p.razorpay_payment_id || p.id,
+            amount: Number(p.amount),
+            paidAt: p.created_at,
+            provider: p.provider,
+            method: p.method || p.provider,
+          })),
       },
     };
   });
