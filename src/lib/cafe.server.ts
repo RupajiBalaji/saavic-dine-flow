@@ -16,6 +16,9 @@ export type CafeSettings = {
   closing_time: string;
   ordering_enabled: boolean;
   enforce_hours: boolean;
+  gstin?: string;
+  fssai?: string;
+  sac_code?: string;
 };
 
 export async function admin() {
@@ -178,7 +181,11 @@ export async function computeBill(sessionId: string) {
     total,
     paid,
     due: round2(Math.max(0, total - paid)),
-    payments: payments ?? [],
+    payments: (payments ?? []).map((p) => ({
+      ...p,
+      transactionId: p.razorpay_payment_id || p.id,
+      paidAt: p.created_at,
+    })),
   };
 }
 

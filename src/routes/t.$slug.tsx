@@ -18,6 +18,11 @@ import {
   Clock,
   Phone,
   MessageCircle,
+  Download,
+  Printer,
+  Smartphone,
+  Store,
+  Banknote,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProductDialog, type MenuProduct, type ModifierGroup } from "@/components/customer/ProductDialog";
 import { ComboPopup } from "@/components/customer/ComboPopup";
 
@@ -32,6 +38,8 @@ import { getMenu, getTableContext, placeOrder, getSessionState } from "@/lib/cus
 import { createBillPayment, verifyBillPayment, markPaymentFailed } from "@/lib/payments.functions";
 import { useCart, readStoredSession, writeStoredSession } from "@/lib/cart";
 import { inr, istTime, newIdempotencyKey, ORDER_FLOW, statusLabel } from "@/lib/format";
+import { printReceipt } from "@/lib/print";
+import { TaxInvoiceReceipt } from "@/components/TaxInvoiceReceipt";
 
 import smoothieImg from "@/assets/smoothies.jpg";
 import saladImg from "@/assets/salads.jpg";
@@ -106,6 +114,8 @@ function CustomerPortal() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [session, setSession] = useState<{ sessionId: string; sessionToken: string } | null>(null);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const orderKeyRef = useRef(newIdempotencyKey());
   const payKeyRef = useRef(newIdempotencyKey());
   const menuTopRef = useRef<HTMLDivElement>(null);
@@ -240,11 +250,33 @@ function CustomerPortal() {
   });
 
   const payMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ method }: { method: "UPI" | "CASH" }) => {
       if (!session) throw new Error("No active table session.");
-      const res = await createPaymentFn({ data: { ...session, idempotencyKey: payKeyRef.current } });
-      if ("alreadyPaid" in res && res.alreadyPaid) return { paid: true as const };
-      if ("demoMode" in res && res.demoMode) return { demo: true as const, message: res.message };
+      const res = await createPaymentFn({
+        data: { ...session, idempotencyKey: payKeyRef.current, method },
+      });
+      if ("cashRequested" in res && res.cashRequested) {
+        setShowPaymentModal(false);
+        // Do NOT show invoice dialog! Bill will be given at the cash counter by the cashier!
+        return { cashRequested: true as const, paid: false as const, method: "CASH" as const };
+      }
+      if ("paid" in res && res.paid) {
+        setShowPaymentModal(false);
+        setShowInvoice(true);
+        return {
+          paid: true as const,
+          transactionId: "transactionId" in res ? res.transactionId : undefined,
+          method,
+        };
+      }
+      if ("alreadyPaid" in res && res.alreadyPaid) {
+        setShowPaymentModal(false);
+        setShowInvoice(true);
+        return { paid: true as const, method };
+      }
+      if (!("keyId" in res)) {
+        throw new Error("Payment could not start. Please try again.");
+      }
 
       const loaded = await loadRazorpayScript();
       if (!loaded) throw new Error("Payment could not start. Please check your connection.");
@@ -285,12 +317,18 @@ function CustomerPortal() {
         });
         rzp.open();
       });
-      return { paid: true as const };
+      return { paid: true as const, method };
     },
-    onSuccess: (r) => {
-      if ("demo" in r) toast.info(r.message);
-      else toast.success("Payment successful ✓ Thank you for choosing Saavic.");
+    onSuccess: (data: any) => {
+      setShowPaymentModal(false);
+      if (data?.cashRequested) {
+        toast.info("Please proceed to the cashier counter to pay. Your bill will be given at the counter.");
+      } else {
+        toast.success("Payment successful ✓ Thank you for dining with Saavic.");
+        setShowInvoice(true);
+      }
       queryClient.invalidateQueries({ queryKey: ["session-state"] });
+      queryClient.invalidateQueries({ queryKey: ["table", slug] });
     },
     onError: (e: Error) => toast.error(e.message || "Payment failed. Your order is still active."),
   });
@@ -312,6 +350,11 @@ function CustomerPortal() {
   const table = tableQuery.data?.table;
   const orderingClosed = menu?.cafe?.ordering_enabled === false;
   const state = stateQuery.data;
+
+  const activeOrders = (state?.orders ?? []).filter((o) => o.status !== "CANCELLED");
+  const hasActiveOrders = activeOrders.length > 0;
+  const allOrdersServed = hasActiveOrders && activeOrders.every((o) => o.status === "SERVED");
+  const isPreparing = hasActiveOrders && activeOrders.some((o) => ["PLACED", "ACCEPTED", "PREPARING", "READY"].includes(o.status));
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -648,19 +691,91 @@ function CustomerPortal() {
                     </div>
                     {state.bill.paid > 0 && <Row label="Paid" value={inr(state.bill.paid)} />}
                     {state.bill.due <= 0 && state.bill.total > 0 ? (
-                      <>
-                        <Badge className="mt-2 bg-success text-success-foreground">PAID ✓</Badge>
-                        <p className="text-muted-foreground">Please wait while your order is served.</p>
-                      </>
+                      <div className="mt-3 space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">PAID ✓</Badge>
+                          <span className="font-semibold text-emerald-600 dark:text-emerald-400">Payment Completed</span>
+                        </div>
+                        {state.bill.payments && state.bill.payments.length > 0 && (
+                          <div className="space-y-1.5 border-t border-emerald-500/20 pt-2 text-muted-foreground">
+                            {state.bill.payments.map((p) => (
+                              <div key={p.id} className="rounded bg-background/50 p-2 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-medium text-muted-foreground">Txn No:</span>
+                                  <span className="font-mono text-[11px] font-semibold text-foreground">{p.transactionId}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span>Time (IST):</span>
+                                  <span className="text-foreground">{istTime(p.paidAt)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span>Method:</span>
+                                  <span className="font-medium capitalize text-foreground">{p.method?.toLowerCase() || p.provider.toLowerCase()}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="pt-1 text-[11px] text-muted-foreground">Thank you! Your order is being prepared and served.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 w-full border-emerald-500/40 bg-background font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                          onClick={() => setShowInvoice(true)}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download / Print E-Bill
+                        </Button>
+                      </div>
+                    ) : state.session.payment_state === "PAYMENT_PENDING" ? (
+                      <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs mt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 text-sm">
+                            <Store className="h-4 w-4 text-amber-600" /> Cash Payment at Counter
+                          </span>
+                          <Badge variant="outline" className="bg-amber-500/15 border-amber-500/50 text-amber-800 dark:text-amber-200 text-[10px] font-semibold">
+                            Pending at Counter
+                          </Badge>
+                        </div>
+                        <p className="text-muted-foreground">
+                          Please proceed to the cashier desk to pay <strong className="text-foreground font-mono text-xs">{inr(state.bill.due)}</strong> in cash.
+                        </p>
+                        <div className="flex items-start gap-2 rounded bg-background/80 p-2.5 text-[11px] text-foreground font-medium border border-border/60">
+                          <ReceiptText className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                          <span>Your physical bill will be printed and handed to you directly at the cash counter by the cashier.</span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs font-semibold"
+                          onClick={() => setShowPaymentModal(true)}
+                        >
+                          Switch Payment Option (or Pay via UPI)
+                        </Button>
+                      </div>
                     ) : (
-                      <Button
-                        className="mt-2 w-full"
-                        size="lg"
-                        disabled={payMutation.isPending || state.bill.due <= 0}
-                        onClick={() => payMutation.mutate()}
-                      >
-                        {payMutation.isPending ? "Opening payment…" : `Pay bill · ${inr(state.bill.due)}`}
-                      </Button>
+                      <div className="space-y-2.5 pt-1">
+                        {isPreparing && (
+                          <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                            <Clock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span>Kitchen is preparing your fresh order. You can pay now or after enjoying your meal.</span>
+                          </div>
+                        )}
+                        {allOrdersServed && (
+                          <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 p-2.5 text-xs text-emerald-800 dark:text-emerald-300 border border-emerald-500/20">
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                            <span>All dishes served! Please settle your bill below.</span>
+                          </div>
+                        )}
+                        <Button
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+                          size="lg"
+                          disabled={payMutation.isPending || state.bill.due <= 0}
+                          onClick={() => setShowPaymentModal(true)}
+                        >
+                          Pay bill · {inr(state.bill.due)}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -756,8 +871,8 @@ function CustomerPortal() {
             name: selected.name,
             unitPrice: Number(selected.price) + modifiers.reduce((s, m) => s + m.price_delta, 0),
             quantity,
-            notes: notes || undefined,
             modifiers,
+            ...(notes ? { notes } : {}),
           });
           setSelected(null);
           toast.success("Added to your cart");
@@ -780,6 +895,156 @@ function CustomerPortal() {
           setSelected(plan);
         }}
       />
+
+      {/* Choose Payment Option Dialog */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="max-w-sm p-6 space-y-4">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">Choose Payment Option</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {table ? table.name : "Table"} · Bill Total:{" "}
+              <strong className="text-foreground text-sm font-semibold">
+                {state ? inr(state.bill.due) : "₹0"}
+              </strong>
+            </p>
+          </DialogHeader>
+
+          {isPreparing && (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+              <p className="font-semibold flex items-center gap-1.5 mb-0.5">
+                <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" /> Food is being prepared
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                You can pay now to save time when leaving, or pay after enjoying your fresh meal.
+              </p>
+            </div>
+          )}
+
+          {allOrdersServed && (
+            <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+              <p className="font-semibold flex items-center gap-1.5 mb-0.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" /> All dishes served
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Hope you enjoyed your meal! Please settle your bill via UPI or Cash near the counter.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2.5 pt-1">
+            {/* Option 1: Instant UPI */}
+            <button
+              type="button"
+              disabled={payMutation.isPending}
+              onClick={() => payMutation.mutate({ method: "UPI" })}
+              className="w-full text-left p-3.5 rounded-xl border-2 border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-start gap-3 group disabled:opacity-50"
+            >
+              <div className="h-10 w-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                <Smartphone className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-foreground">UPI / Online Pay</span>
+                  <Badge className="bg-emerald-600 text-white text-[10px] py-0 px-1.5">Fastest</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PhonePe, Google Pay, Paytm, UPI QR
+                </p>
+                <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1.5">
+                  {payMutation.isPending ? "Processing…" : `Pay ${state ? inr(state.bill.due) : ""} instantly →`}
+                </p>
+              </div>
+            </button>
+
+            {/* Option 2: Cash near counter */}
+            <button
+              type="button"
+              disabled={payMutation.isPending}
+              onClick={() => payMutation.mutate({ method: "CASH" })}
+              className="w-full text-left p-3.5 rounded-xl border-2 border-border bg-muted/20 hover:bg-muted/40 transition-all flex items-start gap-3 group disabled:opacity-50"
+            >
+              <div className="h-10 w-10 rounded-lg bg-amber-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                <Store className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-foreground">Cash Near Counter</span>
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-border">Counter</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Pay cash at the billing counter. Your printed bill will be given by the cashier.
+                </p>
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 group-hover:text-foreground mt-1.5">
+                  {payMutation.isPending ? "Requesting…" : `Pay ${state ? inr(state.bill.due) : ""} at Counter →`}
+                </p>
+              </div>
+            </button>
+          </div>
+
+          <div className="pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => setShowPaymentModal(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Printable E-Bill / Tax Invoice Dialog */}
+      <Dialog open={showInvoice} onOpenChange={setShowInvoice}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-background">
+          <TaxInvoiceReceipt
+            cafe={menu?.cafe}
+            tableName={tableQuery.data?.table.name ?? "Table"}
+            sessionCode={state?.session?.code}
+            customerName={(state?.session as any)?.customer_name || null}
+            dateTime={
+              state?.bill.payments?.[0]?.paidAt
+                ? istTime(state.bill.payments[0].paidAt)
+                : istTime(new Date().toISOString())
+            }
+            transactionId={state?.bill.payments?.[0]?.transactionId}
+            isPaid={true}
+            paymentMode={state?.bill.payments?.[0]?.method || "UPI"}
+            items={
+              state?.orders.flatMap((order) =>
+                order.items.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  quantity: item.quantity,
+                  lineTotal: item.line_total,
+                }))
+              ) ?? []
+            }
+            subtotal={state?.bill.subtotal ?? 0}
+            discount={state?.bill.discount ?? 0}
+            taxAmount={state?.bill.taxAmount ?? 0}
+            taxPercent={state?.bill.taxPercent ?? 5}
+            taxName={state?.bill.taxName ?? "GST"}
+            total={state?.bill.paid || state?.bill.total || 0}
+          />
+
+          {/* Action buttons (hidden on print) */}
+          <div className="p-4 bg-muted/40 border-t border-border flex gap-3 no-print">
+            <Button
+              className="flex-1 gap-2"
+              onClick={() => printReceipt("printable-invoice", "Tax Invoice - Saavic Healthy Café")}
+            >
+              <Printer className="h-4 w-4" /> Print / Save PDF
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowInvoice(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

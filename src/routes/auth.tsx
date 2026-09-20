@@ -12,7 +12,7 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Staff login | Saavic Healthy Café" },
-      { name: "description", content: "Secure sign-in for Saavic Healthy Café managers, cashiers and kitchen staff." },
+      { name: "description", content: "Secure sign-in for Saavic Healthy Café managers and kitchen staff." },
       { property: "og:title", content: "Staff login | Saavic Healthy Café" },
       { property: "og:description", content: "Secure sign-in for Saavic Healthy Café staff." },
       { property: "og:type", content: "website" },
@@ -40,7 +40,10 @@ function AuthPage() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     navigate({ to: "/admin", replace: true });
   };
 
@@ -53,7 +56,10 @@ function AuthPage() {
       options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}/auth` },
     });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     if (data.session) navigate({ to: "/admin", replace: true });
     else toast.success("Account created. Please confirm your email, then sign in.");
   };

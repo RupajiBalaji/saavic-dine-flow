@@ -183,10 +183,102 @@
 }
 
 @media print {
-  .no-print {
+  @page {
+    size: auto;
+    margin: 4mm 6mm;
+  }
+
+  /* Hide navigation, action buttons, dialog backdrop overlays */
+  .no-print,
+  button,
+  header,
+  nav,
+  aside,
+  [data-radix-dialog-overlay],
+  div[data-state].fixed.inset-0,
+  div[role="dialog"] > button {
     display: none !important;
   }
+
+  html,
   body {
-    background: white;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When an invoice dialog is open, hide background app so it consumes 0 pages */
+  body:has(#printable-invoice) #root {
+    display: none !important;
+  }
+
+  /* Reset Radix Dialog wrapper in print mode */
+  div[data-radix-portal] {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  div[role="dialog"] {
+    position: static !important;
+    display: block !important;
+    transform: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  #printable-invoice {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    padding: 8px 4px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12px !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  #printable-invoice * {
+    color: #000000 !important;
+    border-color: #666666 !important;
+    background-color: transparent !important;
+  }
+
+  #printable-invoice .text-muted-foreground {
+    color: #555555 !important;
+  }
+
+  #printable-invoice .text-emerald-600,
+  #printable-invoice .text-emerald-400 {
+    color: #047857 !important;
+    font-weight: 700 !important;
+  }
+
+  .table-stand-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    border: 1.5px solid #333 !important;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
   }
 }
+

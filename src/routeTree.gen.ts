@@ -15,6 +15,13 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminKitchenRouteImport } from './routes/_authenticated/admin/kitchen'
+import { Route as AuthenticatedAdminMenuRouteImport } from './routes/_authenticated/admin/menu'
+import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenticated/admin/orders'
+import { Route as AuthenticatedAdminQrRouteImport } from './routes/_authenticated/admin/qr'
+import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin/reports'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminTablesRouteImport } from './routes/_authenticated/admin/tables'
 import { Route as ApiPublicRazorpayWebhookRouteImport } from './routes/api/public/razorpay-webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -46,6 +53,46 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
+const AuthenticatedAdminKitchenRoute =
+  AuthenticatedAdminKitchenRouteImport.update({
+    id: '/kitchen',
+    path: '/kitchen',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminMenuRoute = AuthenticatedAdminMenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
+const AuthenticatedAdminOrdersRoute =
+  AuthenticatedAdminOrdersRouteImport.update({
+    id: '/orders',
+    path: '/orders',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminQrRoute = AuthenticatedAdminQrRouteImport.update({
+  id: '/qr',
+  path: '/qr',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
+const AuthenticatedAdminReportsRoute =
+  AuthenticatedAdminReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminTablesRoute =
+  AuthenticatedAdminTablesRouteImport.update({
+    id: '/tables',
+    path: '/tables',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const ApiPublicRazorpayWebhookRoute =
   ApiPublicRazorpayWebhookRouteImport.update({
     id: '/api/public/razorpay-webhook',
@@ -58,6 +105,13 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/t/$slug': typeof TSlugRoute
+  '/admin/kitchen': typeof AuthenticatedAdminKitchenRoute
+  '/admin/menu': typeof AuthenticatedAdminMenuRoute
+  '/admin/orders': typeof AuthenticatedAdminOrdersRoute
+  '/admin/qr': typeof AuthenticatedAdminQrRoute
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/tables': typeof AuthenticatedAdminTablesRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -65,6 +119,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/t/$slug': typeof TSlugRoute
+  '/admin/kitchen': typeof AuthenticatedAdminKitchenRoute
+  '/admin/menu': typeof AuthenticatedAdminMenuRoute
+  '/admin/orders': typeof AuthenticatedAdminOrdersRoute
+  '/admin/qr': typeof AuthenticatedAdminQrRoute
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/admin/tables': typeof AuthenticatedAdminTablesRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
@@ -75,6 +136,13 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/t/$slug': typeof TSlugRoute
+  '/_authenticated/admin/kitchen': typeof AuthenticatedAdminKitchenRoute
+  '/_authenticated/admin/menu': typeof AuthenticatedAdminMenuRoute
+  '/_authenticated/admin/orders': typeof AuthenticatedAdminOrdersRoute
+  '/_authenticated/admin/qr': typeof AuthenticatedAdminQrRoute
+  '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/_authenticated/admin/tables': typeof AuthenticatedAdminTablesRoute
   '/api/public/razorpay-webhook': typeof ApiPublicRazorpayWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -85,10 +153,29 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin'
     | '/t/$slug'
+    | '/admin/kitchen'
+    | '/admin/menu'
+    | '/admin/orders'
+    | '/admin/qr'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/admin/tables'
     | '/api/public/razorpay-webhook'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/t/$slug' | '/api/public/razorpay-webhook' | '/admin'
+  to:
+    | '/'
+    | '/auth'
+    | '/t/$slug'
+    | '/admin/kitchen'
+    | '/admin/menu'
+    | '/admin/orders'
+    | '/admin/qr'
+    | '/admin/reports'
+    | '/admin/settings'
+    | '/admin/tables'
+    | '/api/public/razorpay-webhook'
+    | '/admin'
   id:
     | '__root__'
     | '/'
@@ -96,6 +183,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/admin'
     | '/t/$slug'
+    | '/_authenticated/admin/kitchen'
+    | '/_authenticated/admin/menu'
+    | '/_authenticated/admin/orders'
+    | '/_authenticated/admin/qr'
+    | '/_authenticated/admin/reports'
+    | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/tables'
     | '/api/public/razorpay-webhook'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
@@ -152,6 +246,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/kitchen': {
+      id: '/_authenticated/admin/kitchen'
+      path: '/kitchen'
+      fullPath: '/admin/kitchen'
+      preLoaderRoute: typeof AuthenticatedAdminKitchenRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/menu': {
+      id: '/_authenticated/admin/menu'
+      path: '/menu'
+      fullPath: '/admin/menu'
+      preLoaderRoute: typeof AuthenticatedAdminMenuRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/orders': {
+      id: '/_authenticated/admin/orders'
+      path: '/orders'
+      fullPath: '/admin/orders'
+      preLoaderRoute: typeof AuthenticatedAdminOrdersRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/qr': {
+      id: '/_authenticated/admin/qr'
+      path: '/qr'
+      fullPath: '/admin/qr'
+      preLoaderRoute: typeof AuthenticatedAdminQrRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/reports': {
+      id: '/_authenticated/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AuthenticatedAdminReportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/tables': {
+      id: '/_authenticated/admin/tables'
+      path: '/tables'
+      fullPath: '/admin/tables'
+      preLoaderRoute: typeof AuthenticatedAdminTablesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/api/public/razorpay-webhook': {
       id: '/api/public/razorpay-webhook'
       path: '/api/public/razorpay-webhook'
@@ -163,11 +306,25 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminKitchenRoute: typeof AuthenticatedAdminKitchenRoute
+  AuthenticatedAdminMenuRoute: typeof AuthenticatedAdminMenuRoute
+  AuthenticatedAdminOrdersRoute: typeof AuthenticatedAdminOrdersRoute
+  AuthenticatedAdminQrRoute: typeof AuthenticatedAdminQrRoute
+  AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
+  AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
+  AuthenticatedAdminTablesRoute: typeof AuthenticatedAdminTablesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
+    AuthenticatedAdminKitchenRoute: AuthenticatedAdminKitchenRoute,
+    AuthenticatedAdminMenuRoute: AuthenticatedAdminMenuRoute,
+    AuthenticatedAdminOrdersRoute: AuthenticatedAdminOrdersRoute,
+    AuthenticatedAdminQrRoute: AuthenticatedAdminQrRoute,
+    AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
+    AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
+    AuthenticatedAdminTablesRoute: AuthenticatedAdminTablesRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   }
 
