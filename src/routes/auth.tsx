@@ -1,12 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Leaf } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -26,7 +24,6 @@ function AuthPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -47,90 +44,58 @@ function AuthPage() {
     navigate({ to: "/admin", replace: true });
   };
 
-  const signUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}/auth` },
-    });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    if (data.session) navigate({ to: "/admin", replace: true });
-    else toast.success("Account created. Please confirm your email, then sign in.");
-  };
-
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="surface-card w-full max-w-sm p-7">
+    <main className="flex min-h-screen items-center justify-center bg-[#FAF8F5] px-4">
+      <div className="w-full max-w-sm p-8 bg-white rounded-3xl border border-[#E8E2D5] shadow-md">
         <div className="mb-6 text-center">
-          <Leaf className="mx-auto mb-2 h-7 w-7 text-primary" aria-hidden />
-          <p className="brand-wordmark text-2xl font-semibold">Saavic</p>
-          <p className="text-xs tracking-[0.25em] text-muted-foreground">HEALTHY CAFÉ · STAFF</p>
+          <img
+            src="/images/logo-monogram-green.png"
+            alt="Saavic Logo"
+            className="mx-auto mb-2.5 h-10 w-10 object-contain"
+          />
+          <h1 className="font-serif text-2xl font-bold text-[#163E24]">Staff Portal</h1>
+          <p className="text-[11px] font-semibold tracking-[0.2em] text-[#7A8578] uppercase mt-1">
+            Saavic Healthy Café
+          </p>
         </div>
 
-        <Tabs defaultValue="signin">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign in</TabsTrigger>
-            <TabsTrigger value="signup">Create account</TabsTrigger>
-          </TabsList>
+        <form onSubmit={signIn} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-xs font-semibold text-[#3D473C]">Work email</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              placeholder="staff@saavic.cafe"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="rounded-xl border-[#E8E2D5] text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-xs font-semibold text-[#3D473C]">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="rounded-xl border-[#E8E2D5] text-xs"
+            />
+          </div>
+          <Button
+            type="submit"
+            className="w-full rounded-full bg-[#1B4D2E] hover:bg-[#143B23] text-white font-bold text-xs py-3 cursor-pointer shadow-xs"
+            disabled={busy}
+          >
+            {busy ? "Signing in…" : "Sign In to Staff Portal"}
+          </Button>
+        </form>
 
-          <TabsContent value="signin">
-            <form onSubmit={signIn} className="space-y-3 pt-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Work email</Label>
-                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="signup">
-            <form onSubmit={signUp} className="space-y-3 pt-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Full name</Label>
-                <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email2">Work email</Label>
-                <Input id="email2" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password2">Password</Label>
-                <Input
-                  id="password2"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={busy}>
-                {busy ? "Creating…" : "Create staff account"}
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                New accounts need a role assigned by an administrator before the dashboard opens.
-              </p>
-            </form>
-          </TabsContent>
-        </Tabs>
+        <p className="text-[11px] text-center text-[#7A8578] mt-6 pt-4 border-t border-[#F0EBE1]">
+          Staff accounts are provisioned by café management.
+        </p>
       </div>
     </main>
   );

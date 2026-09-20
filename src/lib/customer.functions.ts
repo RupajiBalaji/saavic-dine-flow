@@ -280,3 +280,74 @@ export const applyCoupon = createServerFn({ method: "POST" })
       .eq("id", data.sessionId);
     return { discount: capped };
   });
+
+export const getPublicTables = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { admin } = await import("./cafe.server");
+    const db = await admin();
+    const [{ data: tables, error: tErr }, { data: activeSessions }] = await Promise.all([
+      db
+        .from("cafe_tables")
+        .select("id, name, slug, capacity, status, active, sort_order")
+        .eq("active", true)
+        .order("sort_order"),
+      db
+        .from("table_sessions")
+        .select("id, table_id, status")
+        .eq("status", "ACTIVE"),
+    ]);
+
+    if (tErr) {
+      console.error("Error fetching tables:", tErr);
+    }
+
+    const activeTableIdSet = new Set((activeSessions ?? []).map((s) => s.table_id));
+
+    if (tables && tables.length > 0) {
+      return tables.map((t) => {
+        const isFilled = activeTableIdSet.has(t.id) || t.status === "OCCUPIED";
+        return {
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          capacity: t.capacity ?? 4,
+          active: t.active,
+          isOccupied: isFilled,
+          status: isFilled ? ("OCCUPIED" as const) : ("AVAILABLE" as const),
+        };
+      });
+    }
+
+    // Fallback if no tables in DB
+    return Array.from({ length: 20 }, (_, i) => {
+      const num = i + 1;
+      const str = num < 10 ? `0${num}` : `${num}`;
+      return {
+        id: `t-${num}`,
+        name: `Table ${str}`,
+        slug: `table-${str}`,
+        capacity: 4,
+        active: true,
+        isOccupied: false,
+        status: "AVAILABLE" as const,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to query public tables:", err);
+    return Array.from({ length: 20 }, (_, i) => {
+      const num = i + 1;
+      const str = num < 10 ? `0${num}` : `${num}`;
+      return {
+        id: `t-${num}`,
+        name: `Table ${str}`,
+        slug: `table-${str}`,
+        capacity: 4,
+        active: true,
+        isOccupied: false,
+        status: "AVAILABLE" as const,
+      };
+    });
+  }
+});
+
+

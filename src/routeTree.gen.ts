@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as HomeRouteImport } from './routes/home'
+import { Route as MenuRouteImport } from './routes/menu'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -36,6 +38,16 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MenuRoute = MenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
@@ -103,6 +115,8 @@ const ApiPublicRazorpayWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/home': typeof HomeRoute
+  '/menu': typeof MenuRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/t/$slug': typeof TSlugRoute
   '/admin/kitchen': typeof AuthenticatedAdminKitchenRoute
@@ -118,6 +132,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/home': typeof HomeRoute
+  '/menu': typeof MenuRoute
   '/t/$slug': typeof TSlugRoute
   '/admin/kitchen': typeof AuthenticatedAdminKitchenRoute
   '/admin/menu': typeof AuthenticatedAdminMenuRoute
@@ -134,6 +150,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/home': typeof HomeRoute
+  '/menu': typeof MenuRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/t/$slug': typeof TSlugRoute
   '/_authenticated/admin/kitchen': typeof AuthenticatedAdminKitchenRoute
@@ -151,6 +169,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/home'
+    | '/menu'
     | '/admin'
     | '/t/$slug'
     | '/admin/kitchen'
@@ -166,6 +186,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/home'
+    | '/menu'
     | '/t/$slug'
     | '/admin/kitchen'
     | '/admin/menu'
@@ -181,6 +203,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/home'
+    | '/menu'
     | '/_authenticated/admin'
     | '/t/$slug'
     | '/_authenticated/admin/kitchen'
@@ -198,6 +222,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  HomeRoute: typeof HomeRoute
+  MenuRoute: typeof MenuRoute
   TSlugRoute: typeof TSlugRoute
   ApiPublicRazorpayWebhookRoute: typeof ApiPublicRazorpayWebhookRoute
 }
@@ -223,6 +249,20 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/menu': {
+      id: '/menu'
+      path: '/menu'
+      fullPath: '/menu'
+      preLoaderRoute: typeof MenuRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -348,6 +388,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  HomeRoute: HomeRoute,
+  MenuRoute: MenuRoute,
   TSlugRoute: TSlugRoute,
   ApiPublicRazorpayWebhookRoute: ApiPublicRazorpayWebhookRoute,
 }

@@ -129,6 +129,9 @@ function CustomerPortal() {
 
   // Restore/align the stored customer session for this table.
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("saavic:last-table", slug);
+    }
     const stored = readStoredSession(slug);
     const live = tableQuery.data?.session;
     if (live) {
@@ -142,6 +145,7 @@ function CustomerPortal() {
       setSession(stored);
     }
   }, [slug, tableQuery.data]);
+
 
   const stateQuery = useQuery({
     queryKey: ["session-state", session?.sessionId],
@@ -359,17 +363,42 @@ function CustomerPortal() {
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <header className="hero-gradient px-5 pb-6 pt-7 text-primary-foreground">
-        <div className="mx-auto flex max-w-2xl items-center justify-between">
-          <div>
-            <p className="brand-wordmark text-2xl font-semibold">Saavic</p>
-            <p className="text-xs tracking-[0.25em] opacity-90">HEALTHY CAFÉ</p>
+      <header className="hero-gradient px-5 pb-6 pt-4 text-primary-foreground">
+        <div className="mx-auto flex max-w-2xl items-center justify-between pb-2.5 mb-3 border-b border-primary-foreground/15 text-xs">
+          <Link to="/" className="inline-flex items-center gap-1 opacity-85 hover:opacity-100 transition-opacity">
+            <span>← Landing</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/home" className="opacity-85 hover:opacity-100 transition-opacity">
+              About Café
+            </Link>
+            <Link
+              to="/menu"
+              className="inline-flex items-center gap-1 bg-primary-foreground/20 hover:bg-primary-foreground/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-colors"
+            >
+              <span>Change Table</span>
+            </Link>
           </div>
-          <Badge className="bg-primary-foreground/15 text-primary-foreground">
-            {table ? table.name : <Skeleton className="h-4 w-16" />}
-          </Badge>
         </div>
-        <p className="mx-auto mt-4 max-w-2xl text-sm opacity-95">
+        <div className="mx-auto flex max-w-2xl items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/images/logo-monogram-white.png"
+              alt="Saavic"
+              className="w-7 h-7 object-contain"
+            />
+            <div>
+              <p className="brand-wordmark text-2xl font-semibold">Saavic</p>
+              <p className="text-xs tracking-[0.25em] opacity-90">HEALTHY CAFÉ</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-primary-foreground/15 text-primary-foreground">
+              {table ? table.name : <Skeleton className="h-4 w-16" />}
+            </Badge>
+          </div>
+        </div>
+        <p className="mx-auto mt-3 max-w-2xl text-xs sm:text-sm opacity-95">
           Welcome! You're ordering from {table?.name ?? "your table"}.
         </p>
         <div className="mx-auto mt-4 flex max-w-2xl items-center gap-2 rounded-full bg-card px-4 py-2.5">
