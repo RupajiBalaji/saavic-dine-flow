@@ -32,7 +32,7 @@ export default defineConfig({
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     nitro({
-      defaultPreset: "cloudflare-module",
+      defaultPreset: process.env.NITRO_PRESET || "node-server",
     }),
   ],
 });
